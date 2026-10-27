@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HC Command Center — Remote Latinos</title>
+<style>
+:root{
+  --p:#7E00B0;--p2:#461B5E;--pl:#f4ebf9;
+  --acc:#4D65FF;
+  --bg:#f7f7f9;--panel:#fff;--panel2:#fafafb;
+  --line:#e8e8ee;--txt:#16121c;--mut:#6b6875;--mut2:#B3B7BC;
+  --red:#e5484d;--redbg:#fdecee;
+  --amb:#c77700;--ambbg:#fff4e0;
+  --grn:#14915f;--grnbg:#e5f6ee;
+  --sh:0 1px 2px rgba(22,18,28,.04),0 4px 16px rgba(70,27,94,.05);
+  --sh2:0 24px 64px rgba(30,10,45,.22)
+}
+.dark{
+  --bg:#0d0a12;--panel:#15111c;--panel2:#1b1624;
+  --line:#2a2335;--txt:#efeaf5;--mut:#a39cb0;--pl:#2a1838;
+  --redbg:rgba(229,72,77,.14);--ambbg:rgba(245,170,40,.13);--amb:#f5b544;
+  --grnbg:rgba(30,180,120,.13);--grn:#3ecf8e;
+  --sh:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25)
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font:14px/1.5 Inter,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+button{cursor:pointer;font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--txt);border-radius:6px;padding:5px 12px}
+button:hover{background:var(--panel2)}
+.app{display:grid;grid-template-columns:224px 1fr;height:100vh;overflow:hidden}
+aside{border-right:1px solid var(--line);background:var(--panel);padding:16px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+#main{overflow-y:auto;overflow-x:hidden}
+.brand{display:flex;align-items:center;gap:8px;padding:4px 8px 16px}
+.brand-icon{width:28px;height:28px;background:var(--p);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;flex-shrink:0}
+.brand-text{font-size:13px;font-weight:700}.brand-sub{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.navh{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;padding:12px 8px 4px}
+.nav a{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;color:var(--mut);font-weight:500;font-size:13.5px;transition:all .12s;cursor:pointer}
+.nav a:hover{background:var(--panel2);color:var(--txt)}.nav a.on{background:var(--pl);color:var(--p)}
+.dark .nav a.on{color:#d9a8f0}
+.nav a svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.nav a .badge{margin-left:auto;background:var(--panel2);border:1px solid var(--line);border-radius:99px;font-size:11px;font-weight:600;padding:0 6px;min-width:20px;text-align:center}
+.nav a.on .badge{background:var(--pl);border-color:rgba(126,0,176,.2);color:var(--p)}
+.dark .nav a.on .badge{color:#d9a8f0;background:#2a1838;border-color:rgba(217,168,240,.2)}
+.user-row{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:12px 8px 0}
+.user-av{width:30px;height:30px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex-shrink:0}
+.user-name{font-size:12.5px;font-weight:600}.user-role{font-size:11px;color:var(--mut)}
+.topbar{display:flex;align-items:center;gap:8px;padding:13px 22px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--line)}
+.topbar-title{font-size:17px;font-weight:700;flex:0 0 auto}
+.hc-filter{display:flex;gap:3px}.hc-filter button{padding:4px 10px;font-size:13px;font-weight:500;border-radius:20px}
+.hc-filter button.on{background:var(--p);color:#fff;border-color:var(--p)}
+.search-btn{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:13px;color:var(--mut);cursor:pointer;white-space:nowrap;margin-left:auto}
+.search-btn kbd{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+.theme-btn{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);flex-shrink:0}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--grn);display:inline-block;margin-right:4px}
+.sync-info{font-size:11.5px;color:var(--mut);white-space:nowrap;flex-shrink:0}
+.banner{background:var(--ambbg);border:1px solid rgba(199,119,0,.2);border-radius:8px;padding:9px 14px;margin:10px 22px 0;display:flex;align-items:center;gap:8px;font-size:13px}
+.banner svg{width:15px;height:15px;stroke:var(--amb);fill:none;stroke-width:2;flex-shrink:0}
+.banner b{color:var(--amb)}.banner a{color:var(--p);font-weight:600;cursor:pointer}
+.banner-x{margin-left:auto;cursor:pointer;color:var(--mut);padding:0 4px}
+.view{display:none;padding:14px 22px 40px}.view.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;box-shadow:var(--sh)}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.kpi .k{font-size:12px;color:var(--mut);font-weight:500;display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.kpi .v{font-size:24px;font-weight:700;line-height:1.1;margin-bottom:2px}
+.kpi .tgt{font-size:12px;color:var(--mut)}
+.delta{font-size:11px;font-weight:600;padding:1px 5px;border-radius:4px}
+.delta.up{background:var(--grnbg);color:var(--grn)}.delta.dn{background:var(--redbg);color:var(--red)}
+.mini-bar{height:3px;border-radius:2px;background:var(--line);margin-top:8px;overflow:hidden}
+.mini-bar i{display:block;height:100%;border-radius:2px;background:var(--p)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.pill i{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.p-red{background:var(--redbg);color:var(--red)}.p-red i{background:var(--red)}
+.p-amb{background:var(--ambbg);color:var(--amb)}.p-amb i{background:var(--amb)}
+.p-grn{background:var(--grnbg);color:var(--grn)}.p-grn i{background:var(--grn)}
+.p-p{background:var(--pl);color:var(--p)}.p-p i{background:var(--p)}
+.p-n{background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.av{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px;flex-shrink:0}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;background:var(--panel)}
+th{padding:8px 11px;text-align:left;font-size:12px;font-weight:600;color:var(--mut);background:var(--panel2);border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--txt)}.th-asc::after{content:' ↑'}.th-desc::after{content:' ↓'}
+td{padding:8px 11px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
+tr:last-child td{border-bottom:0}tr:hover td{background:var(--panel2)}
+tr.row-urgent td{background:rgba(229,72,77,.04)}tr.row-urgent td:first-child{border-left:3px solid var(--red)}
+tr.row-warn td:first-child{border-left:3px solid var(--amb)}
+.cl{font-weight:600;cursor:pointer;color:var(--txt)}.cl:hover{color:var(--p)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.cm-cell{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mut);font-size:12.5px}
+.two-col{display:grid;grid-template-columns:1fr 370px;gap:14px;margin-top:12px}
+@media(max-width:1100px){.two-col{grid-template-columns:1fr}}
+.inbox-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh)}
+.inbox-hdr{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.inbox-hdr .sub{color:var(--mut);font-weight:400;font-size:11.5px;margin-left:auto}
+.it{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s}
+.it:last-child{border-bottom:0}.it:hover{background:var(--panel2)}.it.done{opacity:.4}
+.chk{width:17px;height:17px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.it.done .chk{background:var(--grn);border-color:var(--grn)}.it.done .chk::after{content:'✓';color:#fff;font-size:9px}
+.n{width:17px;height:17px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--mut)}
+.it-txt{flex:1;min-width:0}.it-txt b{display:block;font-size:13px;font-weight:600}.it-txt span{color:var(--mut);font-size:11.5px}
+.pace-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh)}
+.pace-hdr{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.pace-hdr .sub{color:var(--mut);font-weight:400;font-size:11.5px}
+.pace-body{padding:11px 13px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-bottom:6px}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
+.hm-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh);margin-top:14px}
+.hm-hdr{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kanban{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.kan-col{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.kan-col h4{font-size:12px;font-weight:700;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between}
+.kan-col h4 span{color:var(--mut);font-weight:400;font-size:11px}
+.kc{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:9px;margin-bottom:7px;cursor:pointer;transition:border-color .1s}
+.kc:hover{border-color:var(--p)}.kc b{display:block;font-size:12.5px;margin-bottom:5px}
+.kc .km{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.view-toggle button{border:0;border-radius:0;padding:4px 11px;font-size:12.5px;background:transparent;border-right:1px solid var(--line)}
+.view-toggle button:last-child{border-right:0}.view-toggle button.on{background:var(--p);color:#fff}
+.hero-bar{background:linear-gradient(135deg,var(--p2),var(--p));color:#fff;border-radius:10px;padding:16px 20px;margin-bottom:12px}
+.hero-bar .hl{font-size:12.5px;opacity:.8;margin-bottom:3px}
+.hero-bar .hv{font-size:26px;font-weight:700;margin-bottom:6px}
+.hero-bar .hs{font-size:12.5px;opacity:.85}
+.pb{height:5px;background:rgba(255,255,255,.25);border-radius:3px;margin:8px 0 6px;overflow:hidden}
+.pb i{display:block;height:100%;border-radius:3px;background:#fff}
+.funnel-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.funnel-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;flex:1;min-width:100px;text-align:center}
+.funnel-card .fn{font-size:11px;color:var(--mut);margin-bottom:3px}
+.funnel-card .fv{font-size:20px;font-weight:700}
+.phase-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.phase-pills button{border-radius:20px;font-size:12.5px}.phase-pills button.on{background:var(--p);color:#fff;border-color:var(--p)}
+.no-ctr{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.no-ctr svg{opacity:.35;flex-shrink:0}.nc-cts{display:flex;gap:14px;margin-left:auto}
+.nc-hc{text-align:center}.nc-hc b{display:block;font-size:17px;font-weight:700}.nc-hc span{font-size:10.5px;color:var(--mut)}
+.lb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:900px){.lb-grid{grid-template-columns:1fr}}
+.lb-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px;box-shadow:var(--sh)}
+.lb-top{display:flex;align-items:center;gap:11px;margin-bottom:13px}
+.lb-info .lb-rank{font-size:11px;color:var(--mut)}.lb-info .lb-name{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px;margin:2px 0 5px}
+.lb-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px}
+.lb-row:last-child{border-bottom:0}.lb-row span{color:var(--mut)}.lb-row b{font-weight:600}
+.sec-hdr{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+.sec-hdr h3{font-size:14px;font-weight:700}.sec-cnt{color:var(--mut);font-size:13px}
+.filt-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.filt-row input{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font:inherit;font-size:13px;color:var(--txt);outline:none;width:190px}
+.filt-row input:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(126,0,176,.1)}
+.per-sel select,.dr input{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font:inherit;font-size:13px;color:var(--txt);outline:none}
+.dr{display:none;align-items:center;gap:5px;font-size:13px}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none}
+#scrim.on{display:block}
+#drawer{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:95vw;background:var(--panel);z-index:50;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:var(--sh2)}
+#drawer.on{transform:translateX(0)}
+.dh{padding:15px 17px;border-bottom:1px solid var(--line)}
+.dh-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.dh-id{font-size:10.5px;color:var(--mut);letter-spacing:.05em}
+.dh-x{background:var(--panel2);border:1px solid var(--line);border-radius:5px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;color:var(--mut)}
+.dh h2{font-size:19px;font-weight:750;margin:3px 0 7px}
+.dh-pills{display:flex;gap:5px;flex-wrap:wrap}
+.ds{padding:14px 17px;border-bottom:1px solid var(--line)}
+.ds h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:8px}
+.nba{background:var(--pl);border:1px solid rgba(126,0,176,.12);border-radius:7px;padding:11px;font-size:13px;line-height:1.55}
+.dark .nba{background:#2a1838;border-color:rgba(217,168,240,.12)}
+.tl-item{padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.tl-item:last-child{border-bottom:0}
+.tl-top{display:flex;align-items:center;gap:5px;font-weight:600;margin-bottom:2px}
+.tl-sub{color:var(--mut);font-size:11.5px}
+.stg-flow{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.stg-flow small{color:var(--mut);font-size:11px}
+.stat-g{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stat-g div>div:first-child{font-size:20px;font-weight:700}
+.stat-g div>div:last-child{font-size:11px;color:var(--mut)}
+#cmdk{position:fixed;top:16%;left:50%;transform:translateX(-50%);width:500px;max-width:94vw;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:var(--sh2);z-index:60;display:none}
+#cmdk.on{display:block}
+#kq-row{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line)}
+#kq-row svg{width:17px;height:17px;stroke:var(--mut);fill:none;stroke-width:2;flex-shrink:0}
+#kq{flex:1;border:0;background:transparent;font:inherit;font-size:14.5px;color:var(--txt);outline:none}
+#kres{padding:6px;max-height:300px;overflow-y:auto}
+.kg{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);padding:7px 9px 3px}
+.ki{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px}
+.ki:hover,.ki.sel{background:var(--pl);color:var(--p)}
+.dark .ki:hover,.dark .ki.sel{background:#2a1838;color:#d9a8f0}
+.ki-av{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;flex-shrink:0;background:var(--p)}
+.ki-ico{width:21px;height:21px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.ki-lbl{flex:1}.ki-hint{font-size:11px;color:var(--mut);margin-left:auto}
+.k-foot{padding:7px 13px;border-top:1px solid var(--line);font-size:11px;color:var(--mut);display:flex;gap:10px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 14px;border-radius:7px;font-size:12.5px;z-index:100;opacity:0;transition:opacity .18s;pointer-events:none}
+#toast.on{opacity:1}
+#tip{position:fixed;background:#1a1a2e;color:#fff;padding:4px 8px;border-radius:5px;font-size:11.5px;z-index:200;pointer-events:none;opacity:0;max-width:280px;transition:opacity .1s;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── SIDEBAR ── -->
+<aside>
+  <div class="brand">
+    <div class="brand-icon">RL</div>
+    <div><div class="brand-text">HC Command Center</div><div class="brand-sub">Remote Latinos</div></div>
+  </div>
+  <div class="navh">Clients</div>
+  <nav class="nav" id="nav">
+    <a data-v="today" class="on">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Today<span class="badge" id="b-today">—</span>
+    </a>
+    <a data-v="open">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Open<span class="badge" id="b-open">—</span>
+    </a>
+    <a data-v="placed">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Placed<span class="badge" id="b-placed">—</span>
+    </a>
+    <a data-v="upsell">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Upsell<span class="badge" id="b-upsell">—</span>
+    </a>
+    <a data-v="paused">
+      <svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      Paused / Pending<span class="badge" id="b-paused">—</span>
+    </a>
+  </nav>
+  <div class="navh">Team</div>
+  <nav class="nav">
+    <a data-v="leaderboard">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Leaderboard
+    </a>
+  </nav>
+  <div class="user-row">
+    <div class="user-av">MC</div>
+    <div><div class="user-name">Mateo Cortázar</div><div class="user-role">Head of HC</div></div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<div id="main">
+  <div class="topbar">
+    <div class="topbar-title" id="ttl">Today</div>
+    <div class="hc-filter" id="hcf">
+      <button data-h="All" class="on">All</button>
+      <button data-h="Q0aVHyBbFhqJxWuEKLMt">Mateo</button>
+      <button data-h="uqAeFfwbHnH0lCwSvprz">Matt</button>
+      <button data-h="YNlj27LBFv74CKLrh1zy">María Fernanda</button>
+    </div>
+    <button class="search-btn" onclick="openK()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search clients…<kbd>⌘K</kbd>
+    </button>
+    <button class="theme-btn" onclick="toggleTheme()" title="Toggle dark mode (T)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <div class="sync-info"><span class="sync-dot" id="sdot"></span><span id="stime">Loading…</span></div>
+  </div>
+
+  <div class="banner" id="banner" style="display:none">
+    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span><b id="bn-count"></b> — <span id="bn-names"></span></span>
+    <a id="bn-link">Assign →</a>
+    <span class="banner-x" onclick="this.parentNode.style.display='none'">×</span>
+  </div>
+
+  <!-- TODAY -->
+  <div class="view on" id="v-today">
+    <div class="filt-row" style="margin-top:6px">
+      <div class="per-sel"><select id="per" onchange="onPerChange()">
+        <option value="tw">This week</option>
+        <option value="lw">Last week</option>
+        <option value="tm">This month</option>
+        <option value="lm">Last month</option>
+        <option value="cu">Custom range</option>
+      </select></div>
+      <div class="dr" id="dr">
+        <input type="date" id="d1" onchange="renderToday()">
+        <span style="color:var(--mut)">→</span>
+        <input type="date" id="d2" onchange="renderToday()">
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--mut);margin-bottom:4px">Performance · <span id="plbl"></span></div>
+    <div class="kpi-row" id="kpis"></div>
+    <div class="two-col">
+      <div class="inbox-card">
+        <div class="inbox-hdr">5 things to do today<span class="sub">Ranked by urgency · Placed clients</span></div>
+        <div id="inbox"></div>
+      </div>
+      <div class="pace-card">
+        <div class="pace-hdr">Team pace<span class="sub"> · conversations / week vs target</span></div>
+        <div class="pace-body">
+          <div class="legend" id="pace-leg"></div>
+          <div id="pace-svg"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hm-card">
+      <div class="hm-hdr">Check-in attendance <span style="color:var(--mut);font-size:11.5px;font-weight:400">— auto-detected from Calendar + Fathom</span>
+        <span style="margin-left:auto" class="pill p-n">Not connected yet</span></div>
+      <div style="padding:18px 14px;color:var(--mut);font-size:13px;text-align:center">Connect Google Calendar and Fathom to see the check-in heatmap.</div>
+    </div>
+  </div>
+
+  <!-- OPEN -->
+  <div class="view" id="v-open">
+    <div class="kpi-row" id="open-kpis"></div>
+    <div class="filt-row"><input type="text" placeholder="Filter clients…" data-f="open" id="f-open"></div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th data-tbl="open" data-k="name">Client</th>
+        <th data-tbl="open" data-k="hc_id">HC</th>
+        <th data-tbl="open" data-k="client_type">Type</th>
+        <th data-tbl="open" data-k="active_days" class="num">Days active</th>
+        <th data-tbl="open" data-k="candidates_presented" class="num">Candidates</th>
+        <th data-tbl="open" data-k="_notes">Notes</th>
+        <th>Check-ins</th>
+      </tr></thead><tbody id="tb-open"></tbody></table>
+    </div>
+  </div>
+
+  <!-- PLACED -->
+  <div class="view" id="v-placed">
+    <div class="no-ctr" id="no-ctr" style="display:none">
+      <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5-2 4-2 4 2 4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      <div><b>No contact record</b><div style="font-size:12px;color:var(--mut)">Placed clients with zero logged touchpoints</div></div>
+      <div class="nc-cts" id="nc-cts"></div>
+    </div>
+    <div class="phase-pills" id="phase-pills"></div>
+    <div class="filt-row"><input type="text" placeholder="Filter clients…" data-f="placed" id="f-placed"></div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th data-tbl="placed" data-k="name">Client</th>
+        <th data-tbl="placed" data-k="hc_id">HC</th>
+        <th data-tbl="placed" data-k="_phase">Phase</th>
+        <th data-tbl="placed" data-k="_pdays" class="num">Days since placement</th>
+        <th data-tbl="placed" data-k="last_conv_at">Last contact</th>
+        <th data-tbl="placed" data-k="_alert">Alert</th>
+      </tr></thead><tbody id="tb-placed"></tbody></table>
+    </div>
+  </div>
+
+  <!-- UPSELL -->
+  <div class="view" id="v-upsell">
+    <div class="hero-bar">
+      <div class="hl">Upsell pipeline · active opportunities</div>
+      <div class="hv" id="uhv">Loading…</div>
+      <div class="hs" id="uhs"></div>
+    </div>
+    <div class="funnel-row" id="ufunnel"></div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px">
+      <div class="view-toggle" id="utog">
+        <button data-uv="table" class="on">Table</button>
+        <button data-uv="kanban">Kanban</button>
+      </div>
+    </div>
+    <div id="utbl-wrap"><div class="tbl-wrap">
+      <table><thead><tr>
+        <th data-tbl="upsell" data-k="name">Client</th>
+        <th data-tbl="upsell" data-k="hc_id">HC</th>
+        <th data-tbl="upsell" data-k="stage">Stage</th>
+        <th data-tbl="upsell" data-k="upsell_amount" class="num">Value</th>
+        <th data-tbl="upsell" data-k="_cdays" class="num">Last contact</th>
+        <th data-tbl="upsell" data-k="_urgency">Urgency</th>
+        <th data-tbl="upsell" data-k="notes">Notes</th>
+      </tr></thead><tbody id="tb-upsell"></tbody></table>
+    </div></div>
+    <div id="ukanban" class="kanban" style="display:none"></div>
+  </div>
+
+  <!-- PAUSED / PENDING -->
+  <div class="view" id="v-paused">
+    <div class="sec-hdr"><h3>Paused clients</h3><span class="sec-cnt" id="pcnt"></span></div>
+    <div class="filt-row"><input type="text" placeholder="Filter…" data-f="paused" id="f-paused"></div>
+    <div class="tbl-wrap" style="margin-bottom:22px">
+      <table><thead><tr>
+        <th data-tbl="paused" data-k="name">Client</th>
+        <th data-tbl="paused" data-k="hc_id">HC</th>
+        <th data-tbl="paused" data-k="pause_reason">Reason</th>
+        <th data-tbl="paused" data-k="return_date">Tentative return</th>
+        <th data-tbl="paused" data-k="last_conv_at">Last contact</th>
+      </tr></thead><tbody id="tb-paused"></tbody></table>
+    </div>
+    <div class="sec-hdr"><h3>Pending clients</h3><span class="sec-cnt" id="qcnt"></span></div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th data-tbl="pending" data-k="name">Client</th>
+        <th data-tbl="pending" data-k="hc_id">HC</th>
+        <th data-tbl="pending" data-k="_wdays" class="num">Days waiting</th>
+        <th data-tbl="pending" data-k="_flag">Flag</th>
+      </tr></thead><tbody id="tb-pending"></tbody></table>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="view" id="v-leaderboard">
+    <div class="lb-grid" id="lb"></div>
+  </div>
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div id="scrim" onclick="closeAll()"></div>
+<div id="drawer"><div id="dc"></div></div>
+<div id="cmdk">
+  <div id="kq-row">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="kq" placeholder="Search clients, jump to view…" autocomplete="off">
+  </div>
+  <div id="kres"></div>
+  <div class="k-foot"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span></div>
+</div>
+<div id="toast"></div>
+<div id="tip"></div>
+
+<script>
+const SB = 'https://aiwhvmyasfctkkzmgczh.supabase.co';
+const AK = 'sb_publishable_zZWGGI_AUvUDwhijL4GR7g_xRaetKFu';
+
+const HCC = {
+  'Q0aVHyBbFhqJxWuEKLMt': { s:'Mateo',          c:'#7E00B0' },
+  'uqAeFfwbHnH0lCwSvprz': { s:'Matt',            c:'#4D65FF' },
+  'YNlj27LBFv74CKLrh1zy': { s:'María Fernanda',  c:'#c0399a' },
+};
+const UST = ['Seeded','Detected','Pitched','Active','Closed','Failed Negotiation','Not Interested'];
+const USC = { Seeded:'p-n', Detected:'p-n', Pitched:'p-amb', Active:'p-p', Closed:'p-grn', 'Failed Negotiation':'p-red', 'Not Interested':'p-n' };
+const TODAY = new Date();
+
+let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[] };
+let SORT = { open:['name',1], placed:['_placed_sort',-1], upsell:['_urgency',-1], paused:['name',1], pending:['_wdays',-1] };
+let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'table';
+let ki = 0, kitems = [];
+
+async function sbGet(table, qs='') {
+  const r = await fetch(`${SB}/rest/v1/${table}${qs}`, {
+    headers:{ apikey:AK, Authorization:'Bearer '+AK }
+  });
+  if (!r.ok) { const t=await r.text(); throw new Error(table+': '+t.slice(0,120)); }
+  return r.json();
+}
+
+async function load() {
+  const ago56 = new Date(Date.now()-56*864e5).toISOString();
+  const [clients, upsell, msgs] = await Promise.all([
+    sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at&limit=2000'),
+    sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&stage=neq.N%2FA&limit=2000'),
+    sbGet('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction&is_conversation=eq.true&date_added=gte.'+ago56+'&limit=2000'),
+  ]);
+  const uMap={};
+  for(const u of upsell) uMap[u.client_id]=u;
+  // Build recent-conv map from messages (last 56 days loaded) — fills gaps where clients.last_conv_at is stale
+  const rcm={};
+  for(const m of msgs){if(!rcm[m.client_id]||m.date_added>rcm[m.client_id])rcm[m.client_id]=m.date_added;}
+  function mergeConv(c){
+    const r=rcm[c.id];
+    return{...c,last_conv_at:(r&&(!c.last_conv_at||r>c.last_conv_at))?r:c.last_conv_at};
+  }
+  D.open    = clients.filter(c=>c.status==='open').map(c=>({...mergeConv(c),_u:uMap[c.id]||null}));
+  D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>({...mergeConv(c),_u:uMap[c.id]||null}));
+  D.paused  = clients.filter(c=>c.status==='paused').map(mergeConv);
+  D.pending = clients.filter(c=>c.status==='pending').map(mergeConv);
+  D.upsell  = upsell.filter(u=>u.stage!=='N/A').map(u=>{
+    const c=clients.find(x=>x.id===u.client_id)||{};
+    const lc=rcm[u.client_id]||c.last_conv_at||null;
+    return {...u,name:c.name||'?',hc_id:c.hc_id||null,last_conv_at:lc};
+  });
+  D.msgs = msgs;
+
+  // Banner
+  const ua=D.open.filter(c=>!c.hc_id);
+  if(ua.length>0){
+    const b=document.getElementById('banner'); b.style.display='flex';
+    document.getElementById('bn-count').textContent=ua.length+' unassigned client'+(ua.length>1?'s':'');
+    document.getElementById('bn-names').textContent=ua.slice(0,4).map(c=>c.name).join(', ')+(ua.length>4?'…':'');
+  }
+  // Badges
+  set('b-today', D.placed.filter(c=>{const ph=phase(c);const d=dago(c.last_conv_at);return(ph==='M1'||ph==='M2')&&(d===null||d>30);}).length||'—');
+  set('b-open',   D.open.length);
+  set('b-placed', D.placed.length);
+  set('b-upsell', D.upsell.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage)).length);
+  set('b-paused', D.paused.length+D.pending.length);
+  set('stime','Synced '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' COT');
+  renderAll();
+}
+
+// ─── helpers ───
+const $=s=>document.querySelector(s);
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function dago(dt){if(!dt)return null;return Math.round((Date.now()-new Date(dt))/864e5);}
+function dfromNow(dt){if(!dt)return null;return Math.round((new Date(dt)-Date.now())/864e5);}
+function fmtDate(dt){if(!dt)return'—';return new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function fmtAgo(dt){if(!dt)return'—';const d=dago(dt);if(d===0)return'Today';if(d===1)return'Yesterday';return d+'d ago';}
+function hcBadge(id){
+  const h=HCC[id];
+  if(!h) return pill('p-red','Unassigned',true);
+  return `<span style="display:inline-flex;align-items:center;gap:5px"><span class="av" style="background:${h.c}">${h.s[0]}</span>${h.s}</span>`;
+}
+function pill(cls,txt,dot=false){return`<span class="pill ${cls}">${dot?'<i></i>':''}${txt}</span>`;}
+function urg(c){
+  let s=0;
+  const u=c._u;
+  if(u){if(u.stage==='Pitched')s+=30;else if(u.stage==='Active')s+=25;else if(u.stage==='Detected')s+=15;}
+  const d=dago(c.last_conv_at);
+  if(d===null)s+=40;else if(d>60)s+=35;else if(d>30)s+=20;else if(d>14)s+=8;
+  return s;
+}
+function oAlert(c){
+  const d=dago(c.last_conv_at);
+  if(d===null)return pill('p-red','Never had a conversation',true);
+  if(d>30)return pill('p-red',`No conversation in ${d} days`,true);
+  if(d>14)return pill('p-amb',`${d} days since last conversation`,true);
+  return pill('p-grn','Active',true);
+}
+function pAlert(c){
+  const d=dago(c.last_conv_at);
+  if(d===null||d>30)return pill('p-red',d===null?'No contact record':`No contact in ${d} days`,true);
+  if(d>15)return pill('p-amb',`${d}d since last contact`,true);
+  return pill('p-grn','Healthy',true);
+}
+function phase(c){
+  if(!c.placement_date)return'No Phase';
+  const dc=dago(c.last_conv_at),dp=dago(c.placement_date);
+  if((dc===null||dc>59)&&dp>60)return'Cold';
+  if(dp<=30)return'M1';if(dp<=60)return'M2';return'M3+';
+}
+function uUrgency(u){
+  let s=0;
+  if(['Pitched','Active'].includes(u.stage))s+=50;
+  else if(u.stage==='Detected')s+=20;
+  const d=dago(u.last_conv_at);
+  if(d===null)s+=40;else if(d>30)s+=30;else if(d>14)s+=15;else if(d>7)s+=5;
+  return s;
+}
+function uUrgPill(u){
+  const s=uUrgency(u);
+  if(s>80)return pill('p-red','Follow up today',true);
+  if(s>50)return pill('p-amb','This week',true);
+  return'<span style="color:var(--mut2)">—</span>';
+}
+function filt(arr,v){
+  const q=(SQ[v]||'').toLowerCase();
+  return arr.filter(c=>(HCF==='All'||c.hc_id===HCF)&&(!q||(c.name||'').toLowerCase().includes(q)));
+}
+function sortArr(arr,v){
+  const[k,d]=SORT[v]||['name',1];
+  return[...arr].sort((a,b)=>{
+    let av=k[0]==='_'?deriv(a,k):a[k];
+    let bv=k[0]==='_'?deriv(b,k):b[k];
+    if(av==null)av=typeof bv==='number'?-Infinity:'zzz';
+    if(bv==null)bv=typeof av==='number'?-Infinity:'zzz';
+    return(av>bv?1:av<bv?-1:0)*d;
+  });
+}
+function deriv(c,k){
+  if(k==='_alert')return dago(c.last_conv_at)??9999;
+  if(k==='_pdays')return dago(c.placement_date)??-1;
+  if(k==='_phase')return phase(c);
+  if(k==='_placed_sort'){
+    const hasU=c._u&&['Pitched','Detected','Active'].includes(c._u.stage);
+    const dc=dago(c.last_conv_at);const dp=dago(c.placement_date)??9999;const ph=phase(c);
+    if(hasU)return 3000000-(dc??9999);
+    if(ph!=='Cold'&&(dc===null||dc>30))return 2000000-dp;
+    if(ph!=='Cold')return 1000000-dp;
+    return -dp;
+  }
+  if(k==='_urgency')return uUrgency(c);
+  if(k==='_cdays')return dago(c.last_external_contact)??9999;
+  if(k==='_wdays')return dago(c.created_at)??0;
+  if(k==='_notes')return c._u?.notes||c.notes||'';
+  if(k==='_flag')return!c.hc_id?0:1;
+  return null;
+}
+
+// ─── period ───
+function periodRange(){
+  const now=Date.now(),dow=TODAY.getDay();
+  const sw=new Date(now-dow*864e5);sw.setHours(0,0,0,0);
+  const sm=new Date(TODAY.getFullYear(),TODAY.getMonth(),1);
+  if(PER==='tw')return[sw,new Date(now)];
+  if(PER==='lw'){const s=new Date(sw.getTime()-7*864e5);const e=new Date(s.getTime()+6*864e5);e.setHours(23,59,59,999);return[s,e];}
+  if(PER==='tm')return[sm,new Date(now)];
+  if(PER==='lm'){const s=new Date(TODAY.getFullYear(),TODAY.getMonth()-1,1);const e=new Date(TODAY.getFullYear(),TODAY.getMonth(),0,23,59,59,999);return[s,e];}
+  if(PER==='cu'){const v1=$('#d1').value,v2=$('#d2').value;if(v1&&v2)return[new Date(v1),new Date(v2+'T23:59:59')];}
+  return[sw,new Date(now)];
+}
+function perLabel(){return{tw:'This week',lw:'Last week',tm:'This month',lm:'Last month',cu:'Custom range'}[PER]||'';}
+
+// ─── renderAll ───
+function renderAll(){renderToday();renderOpen();renderPlaced();renderUpsell();renderPaused();renderLB();}
+
+// ─── TODAY ───
+function renderToday(){
+  const[s,e]=periodRange();
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const fmtY=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  set('plbl',perLabel()+' · '+fmt(s)+' – '+fmtY(e));
+
+  const inR=m=>{const d=new Date(m.date_added);return d>=s&&d<=e;};
+  const fM=HCF==='All'?D.msgs:D.msgs.filter(m=>m.hc_id===HCF);
+  const conv=fM.filter(m=>m.is_conversation&&inR(m)).length;
+  const len=e-s;
+  const ps=new Date(s.getTime()-len),pe=new Date(e.getTime()-len);
+  const prevConv=(HCF==='All'?D.msgs:D.msgs.filter(m=>m.hc_id===HCF)).filter(m=>{const d=new Date(m.date_added);return d>=ps&&d<=pe&&m.is_conversation;}).length;
+  const delta=prevConv>0?((conv-prevConv)/prevConv*100).toFixed(1):null;
+  const up=conv>=prevConv;
+
+  const uFilt=HCF==='All'?D.upsell:D.upsell.filter(u=>u.hc_id===HCF);
+  const pitches=uFilt.filter(u=>u.stage==='Pitched'&&u.stage_since&&new Date(u.stage_since)>=s&&new Date(u.stage_since)<=e).length;
+
+  document.getElementById('kpis').innerHTML=[
+    {l:'Conversations '+(PER.startsWith('t')||PER.startsWith('l')?'/ wk':'/ mo'),v:conv,delta:delta?(up?'+':'')+delta+'%':null,up,c:'#7E00B0',pct:conv>0?Math.min(conv/52,1):0},
+    {l:'New Pitches '+(PER.startsWith('t')||PER.startsWith('l')?'/ wk':'/ mo'),v:pitches,delta:null,up:true,c:'#4D65FF',pct:0},
+    {l:'Upsell $ closed',v:null,nc:true,c:'#7E00B0'},
+    {l:'Upsell deals closed',v:null,nc:true,c:'#14915f'},
+  ].map(k=>`<div class="card kpi">
+    <div class="k">${k.l}${k.delta?` <span class="delta ${k.up?'up':'dn'}">${k.delta}</span>`:''}${k.nc?' <span class="pill p-n" style="font-size:10.5px">Not connected yet</span>':''}</div>
+    <div class="v" style="${k.nc?'font-size:15px;color:var(--mut)':''}">${k.nc?'—':k.v}</div>
+    ${!k.nc&&k.pct?`<div class="mini-bar"><i style="width:${Math.round(k.pct*100)}%"></i></div>`:''}
+  </div>`).join('');
+
+  // 5 things — placed clients: group1 (upsell active) then group2, each sorted by days w/o conv desc
+  const pfilt=HCF==='All'?D.placed:D.placed.filter(c=>c.hc_id===HCF);
+  const pg1=pfilt.filter(c=>c._u&&['Pitched','Active','Detected'].includes(c._u.stage));
+  const pg2=pfilt.filter(c=>!c._u||!['Pitched','Active','Detected'].includes(c._u.stage));
+  const byConvD=(a,b)=>(dago(b.last_conv_at)??9999)-(dago(a.last_conv_at)??9999);
+  const top=[...pg1.sort(byConvD),...pg2.sort(byConvD)].slice(0,5);
+  document.getElementById('inbox').innerHTML=top.length===0
+    ?'<div style="padding:18px;text-align:center;color:var(--mut)">No placed clients to show.</div>'
+    :top.map((c,i)=>{
+      const d=dago(c.last_conv_at),u=c._u,h=HCC[c.hc_id];
+      let action,detail;
+      if(u&&['Pitched','Active'].includes(u.stage)){
+        action=`Follow up on ${u.stage.toLowerCase()} upsell`;
+        detail=`${c.name} · placed · ${d!==null?`no conversation in ${d} days`:'never had a conversation'}`;
+      } else if(u&&u.stage==='Detected'){
+        action='Pitch additional hire';
+        detail=`${c.name} · upsell detected${d!==null?` · ${d}d since last conv`:''}`;
+      } else if(d===null){
+        action='Re-engage placed client';
+        detail=`${c.name} · ${h?.s||'Unassigned'} · no conversation ever recorded`;
+      } else if(d>30){
+        action='Re-engage placed client';
+        detail=`${c.name} · no conversation in ${d} days`;
+      } else{
+        action='Placed client check-in';
+        detail=`${c.name} · last conversation ${d} days ago`;
+      }
+      return`<div class="it" onclick="openDrawer('${c.id}')">
+        <span class="chk" onclick="event.stopPropagation();this.parentNode.classList.toggle('done');toast('Marked done')"></span>
+        <span class="n">${i+1}</span>
+        <div class="it-txt"><b>${action}</b><span>${detail}</span></div>
+        ${h?`<span class="av" style="background:${h.c};margin-left:6px" data-tip="${h.s}">${h.s[0]}</span>`:''}
+      </div>`;
+    }).join('');
+
+  // Pace chart — rightmost bar uses the same window as the KPI period so both numbers match
+  const[pws,pwe]=periodRange();
+  const weeks=[];
+  for(let w=7;w>=1;w--){
+    const we=new Date(pws.getTime()-(w-1)*7*864e5);
+    const ws=new Date(we.getTime()-7*864e5);
+    weeks.push({s:ws,e:we,l:'W'+(8-w)});
+  }
+  weeks.push({s:pws,e:pwe,l:'Now'});
+  const hcList=Object.entries(HCC).filter(([id])=>HCF==='All'||id===HCF);
+  const wData={};
+  for(const[id]of hcList) wData[id]=weeks.map(w=>D.msgs.filter(m=>m.hc_id===id&&new Date(m.date_added)>=w.s&&new Date(m.date_added)<w.e).length);
+  const maxV=Math.max(...hcList.flatMap(([id])=>wData[id]),1);
+  const W=400,H=170;
+  const bw=(W-35)/8;
+  const yS=v=>H-22-(v/(maxV*1.25))*(H-30);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible"><g font-size="10" fill="var(--mut)">`;
+  [0,Math.round(maxV*.5),maxV].forEach(v=>{const y=yS(v);svg+=`<line x1="28" x2="${W}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="3 3"/><text x="0" y="${y+3}">${v}</text>`;});
+  weeks.forEach((w,i)=>{let base=0;hcList.forEach(([id,h])=>{const v=wData[id][i];if(v>0){const y=yS(base+v),ht=yS(base)-yS(base+v);svg+=`<rect x="${31+i*bw+3}" y="${y}" width="${bw-8}" height="${Math.max(ht,1)}" fill="${h.c}" rx="2" opacity="${i===7?1:.82}" data-tip="${w.l} · ${h.s}: ${v}"/>`;}base+=v;});
+    svg+=`<text x="${31+i*bw+bw/2-3}" y="${H-5}" text-anchor="middle">${w.l}</text>`;
+  });
+  svg+='</g></svg>';
+  document.getElementById('pace-svg').innerHTML=svg;
+  document.getElementById('pace-leg').innerHTML=hcList.map(([,h])=>`<span><i style="background:${h.c}"></i>${h.s}</span>`).join(' ');
+}
+
+// ─── OPEN ───
+function renderOpen(){
+  const data=filt(D.open,'open');
+  const nc=data.filter(c=>!c.client_type).length;
+  document.getElementById('open-kpis').innerHTML=[
+    {l:'Total open',v:data.length,c:'#7E00B0'},
+    {l:'New',v:data.filter(c=>c.client_type==='New').length||(nc>0?'—':0),nc:nc>0&&!data.find(c=>c.client_type),c:'#4D65FF'},
+    {l:'Returning',v:data.filter(c=>c.client_type==='Returning').length||(nc>0?'—':0),nc:nc>0&&!data.find(c=>c.client_type==='Returning'),c:'#14915f'},
+    {l:'Replacement',v:data.filter(c=>c.client_type==='Replacement').length||(nc>0?'—':0),nc:nc>0&&!data.find(c=>c.client_type==='Replacement'),c:'#c77700'},
+  ].map(k=>`<div class="card kpi">
+    <div class="k">${k.l}</div>
+    <div class="v" style="${k.v==='—'||k.nc?'color:var(--mut)':''}">${k.nc?'—':k.v}</div>
+    ${k.nc?`<div class="tgt" style="font-size:11px">Not connected yet</div>`:''}
+  </div>`).join('');
+  document.getElementById('tb-open').innerHTML=sortArr(data,'open').map(c=>{
+    const notes=c._u?.notes||'—';
+    return`<tr onclick="openDrawer('${c.id}')">
+      <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
+      <td>${c.client_type?pill('p-n',c.client_type):'<span style="color:var(--mut2)">—</span>'}</td>
+      <td class="num">${c.active_days>0?`<b>${c.active_days}</b> d`:'<span style="color:var(--mut2)">—</span>'}</td>
+      <td class="num">${c.candidates_presented!=null?c.candidates_presented:'<span style="color:var(--mut2)">—</span>'}</td>
+      <td class="cm-cell" data-tip="${notes}">${notes}</td>
+      <td><span style="color:var(--mut2);font-size:12px">Not connected yet</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── PLACED ───
+function renderPlaced(){
+  const all=filt(D.placed,'placed');
+  const nc=all.filter(c=>!c.last_conv_at);
+  const nce=document.getElementById('no-ctr');
+  if(nc.length>0){
+    nce.style.display='flex';
+    const byHC={};for(const c of nc)(byHC[c.hc_id||'none']=(byHC[c.hc_id||'none']||0)+1);
+    document.getElementById('nc-cts').innerHTML=Object.entries(byHC).map(([id,n])=>{const h=HCC[id];return`<div class="nc-hc"><b style="color:${h?.c||'var(--txt)'}">${n}</b><span>${h?.s||'?'}</span></div>`;}).join('');
+  } else nce.style.display='none';
+
+  const phases=['M1','M2','M3+','No Phase','Cold'];
+  const pc={};for(const c of all)pc[phase(c)]=(pc[phase(c)]||0)+1;
+  document.getElementById('phase-pills').innerHTML=phases.map(p=>`<button class="${(!PHASE||PHASE===p)?'on':''}" data-ph="${p}">${p} <span style="opacity:.6">${pc[p]||0}</span></button>`).join('');
+
+  const rows=PHASE?all.filter(c=>phase(c)===PHASE):all;
+  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n',Cold:'p-red'};
+  document.getElementById('tb-placed').innerHTML=sortArr(rows,'placed').map(c=>{
+    const ph=phase(c);
+    const pd=dago(c.placement_date);
+    const dc=dago(c.last_conv_at);
+    const rcls=(dc===null||dc>30)?'row-urgent':(dc>15?'row-warn':'');
+    return`<tr class="${rcls}" onclick="openDrawer('${c.id}')">
+      <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
+      <td>${pill(phC[ph]||'p-n',ph)}</td>
+      <td class="num">${pd!=null?pd+' days':'<span style="color:var(--mut2)">—</span>'}</td>
+      <td>${fmtAgo(c.last_conv_at)}</td><td>${pAlert(c)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── UPSELL ───
+function renderUpsell(){
+  const data=filt(D.upsell,'upsell');
+  const active=data.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage));
+  const closed=data.filter(u=>u.stage==='Closed').length;
+  const total=data.reduce((s,u)=>s+(u.upsell_amount||0),0);
+  document.getElementById('uhv').textContent=total>0?'$'+total.toLocaleString():'Not connected yet — upsell amounts pending';
+  document.getElementById('uhs').textContent=`${active.length} active opportunities · ${closed} closed · ${data.length} total`;
+  document.getElementById('ufunnel').innerHTML=UST.map(s=>{
+    const n=data.filter(u=>u.stage===s).length;
+    return`<div class="funnel-card"><div class="fn">${s}</div><div class="fv">${n}</div></div>`;
+  }).join('');
+  const rows=sortArr(data,'upsell');
+  document.getElementById('tb-upsell').innerHTML=rows.map(u=>{
+    const d=u.last_external_contact?dago(u.last_external_contact):null;
+    return`<tr onclick="openDrawer('${u.client_id}')">
+      <td class="cl">${u.name}</td><td>${hcBadge(u.hc_id)}</td>
+      <td>${pill(USC[u.stage]||'p-n',u.stage)}</td>
+      <td class="num">${u.upsell_amount!=null?'$'+u.upsell_amount.toLocaleString():'<span style="color:var(--mut2)">—</span>'}</td>
+      <td class="num">${d!==null?d+'d ago':'—'}</td>
+      <td>${uUrgPill(u)}</td>
+      <td class="cm-cell" data-tip="${u.notes||''}">${u.notes||'<span style="color:var(--mut2)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('ukanban').innerHTML=UST.map(s=>{
+    const cards=rows.filter(u=>u.stage===s);
+    return`<div class="kan-col"><h4>${s}<span>${cards.length}</span></h4>${cards.map(u=>{
+      const d=u.last_external_contact?dago(u.last_external_contact):null;
+      const h=HCC[u.hc_id];
+      return`<div class="kc" onclick="openDrawer('${u.client_id}')"><b>${u.name}</b><div class="km">
+        ${u.upsell_amount!=null?`<span style="font-size:12px;font-weight:600">$${u.upsell_amount.toLocaleString()}</span>`:''}
+        ${d!==null&&d>14?pill(['Pitched','Active'].includes(u.stage)?'p-red':'p-amb',d+'d silent'):(d!==null?`<span style="font-size:12px;color:var(--mut)">${d}d</span>`:'')}
+        ${h?`<span class="av" style="background:${h.c};width:20px;height:20px;font-size:9px">${h.s[0]}</span>`:''}
+      </div></div>`;
+    }).join('')}</div>`;
+  }).join('');
+}
+
+// ─── PAUSED / PENDING ───
+function renderPaused(){
+  const p=filt(D.paused,'paused'),q=filt(D.pending,'paused');
+  set('pcnt',p.length+' clients'); set('qcnt',q.length+' clients');
+  document.getElementById('tb-paused').innerHTML=sortArr(p,'paused').map(c=>`<tr onclick="openDrawer('${c.id}')">
+    <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
+    <td>${c.pause_reason?pill(c.pause_reason==='Budget'?'p-amb':c.pause_reason.includes('freeze')?'p-p':'p-n',c.pause_reason):'<span style="color:var(--mut2)">Not connected yet</span>'}</td>
+    <td>${c.return_date?fmtDate(c.return_date):'<span style="color:var(--mut2)">Not connected yet</span>'}</td>
+    <td>${fmtAgo(c.last_conv_at)}</td>
+  </tr>`).join('');
+  document.getElementById('tb-pending').innerHTML=sortArr(q,'pending').map(c=>{
+    const wd=dago(c.created_at)||0;
+    return`<tr onclick="openDrawer('${c.id}')">
+      <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
+      <td class="num"><b>${wd}</b> d</td>
+      <td>${!c.hc_id?pill('p-red','Assign HC',true):wd>14?pill('p-amb','No contact yet',true):'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── LEADERBOARD ───
+function renderLB(){
+  document.getElementById('lb').innerHTML=Object.entries(HCC).map(([id,h],i)=>{
+    const mo=D.open.filter(c=>c.hc_id===id);
+    const mm=D.msgs.filter(m=>m.hc_id===id);
+    const mu=D.upsell.filter(u=>u.hc_id===id);
+    const recent=mo.filter(c=>c.last_conv_at&&dago(c.last_conv_at)<=30).length;
+    const hp=mo.length>0?Math.round(recent/mo.length*100):0;
+    const hcls=hp>=70?'p-grn':hp>=50?'p-amb':'p-red';
+    const hlbl=hp>=70?'Healthy':hp>=50?'Needs attention':'At risk';
+    const c7=mm.filter(m=>new Date(m.date_added)>new Date(Date.now()-7*864e5)).length;
+    const uc=mu.filter(u=>u.stage==='Closed').length;
+    const ghosts=mo.filter(c=>!c.last_conv_at||dago(c.last_conv_at)>30).length;
+    return`<div class="lb-card">
+      <div class="lb-top">
+        <div data-tip="Health score: % of open clients with a conversation in the last 30 days">${ring(hp,h.c,76)}</div>
+        <div class="lb-info"><div class="lb-rank">#${i+1} · Portfolio health</div>
+          <div class="lb-name"><span class="av" style="background:${h.c}">${h.s[0]}</span>${h.s}</div>
+          ${pill(hcls,hlbl,true)}</div>
+      </div>
+      ${[['Active clients',mo.length],['Upsell closed',uc||'—'],['Conversations / wk',c7],['Avg. time to close','Not connected yet'],['No-contact ghosts',ghosts]].map(([l,v])=>`<div class="lb-row"><span>${l}</span><b style="${v==='Not connected yet'?'color:var(--mut);font-size:12px':''}">${v}</b></div>`).join('')}
+    </div>`;
+  }).join('');
+}
+function ring(pct,col,sz){
+  const r=sz/2-6,c=2*Math.PI*r;
+  return`<svg width="${sz}" height="${sz}"><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="7"/><circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c*pct/100} ${c}" transform="rotate(-90 ${sz/2} ${sz/2})"/><text x="50%" y="50%" text-anchor="middle" dy=".35em" font-size="15" font-weight="700" fill="var(--txt)">${pct}</text></svg>`;
+}
+
+// ─── DRAWER ───
+async function openDrawer(id){
+  const c=[...D.open,...D.placed,...D.paused,...D.pending].find(x=>x.id===id);
+  if(!c)return;
+  const u=D.upsell.find(x=>x.client_id===id);
+  const[msgs,hist]=await Promise.all([
+    sbGet('messages',`?client_id=eq.${id}&order=date_added.desc&limit=20`),
+    sbGet('upsell_history',`?client_id=eq.${id}&order=changed_at.asc&limit=20`),
+  ]);
+  const h=HCC[c.hc_id];
+  const d=dago(c.last_conv_at);
+  let nba='';
+  if(u&&['Pitched','Active'].includes(u.stage)){
+    const cd=u.last_external_contact?dago(u.last_external_contact):null;
+    nba=`Follow up on <b>${u.stage}</b> upsell opportunity.${cd!==null?` Last external contact was ${cd} days ago.`:' No external contact logged yet.'}${u.notes?` Notes: ${u.notes}`:''}`;
+  } else if(d===null){nba=c.status==='closed'?'Re-engage: <b>no conversation on record</b> for this placed client.':'First outreach needed — <b>no conversation ever recorded</b> for this client.';}
+  else if(d>30){nba=`Re-engage: last conversation was <b>${d} days ago</b>. Client may need a check-in.`;}
+  else if(u&&u.stage==='Detected'){const _sf=u.stage_since?fmtDate(u.stage_since):'';const _ss=_sf&&_sf!=='Sep 29, 2026'?` Stage since ${_sf}.`:'';nba=`Upsell opportunity detected. Consider pitching an additional hire.${_ss}`;}
+  else{nba='Client is active. Last conversation '+(d===0?'today':d+' days ago')+'. Keep the momentum.';}
+
+  const chnC={'Llamada':'#7E00B0',Call:'#7E00B0',SMS:'#4D65FF',Email:'#4D65FF',GHL:'#f58220'};
+  const ph=c.status==='closed'?phase(c):null;
+  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n',Cold:'p-red'};
+  const conv=msgs.filter(m=>m.is_conversation).length;
+  const attempts=msgs.filter(m=>!m.is_conversation).length;
+
+  document.getElementById('dc').innerHTML=`
+    <div class="dh">
+      <div class="dh-top"><button class="dh-x" onclick="closeAll()">✕</button></div>
+      <h2>${c.name}</h2>
+      <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='open'?oAlert(c):c.status==='closed'?pAlert(c):pill('p-n',c.status)}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
+    </div>
+    <div class="ds"><h4>Next recommended action</h4><div class="nba">${nba}</div></div>
+    <div class="ds"><h4>Activity timeline</h4>
+      ${msgs.length===0?'<div style="color:var(--mut);font-size:13px">No activity on record.</div>':msgs.slice(0,8).map(m=>{
+        const tp=m.message_type||'MSG';const co=chnC[tp]||'#6b6875';
+        return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tp.slice(0,3)}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;
+      }).join('')}
+    </div>
+    <div class="ds"><h4>Upsell stage history</h4>
+      ${hist.length===0?'<div style="color:var(--mut);font-size:13px">No upsell history.</div>':`<div class="stg-flow">${hist.map((h2,i)=>{const isBulk=h2.changed_at&&fmtDate(h2.changed_at)==='Sep 29, 2026';return(i>0?'<small>→</small>':'')+pill(USC[h2.stage]||'p-n',h2.stage)+(isBulk?'':' <small>'+fmtDate(h2.changed_at)+'</small>');}).join('')}</div>`}
+    </div>
+    <div class="ds" style="border:0"><h4>Stats</h4>
+      <div class="stat-g">
+        <div><div>${conv}</div><div>Conversations</div></div>
+        <div><div>${attempts}</div><div>Attempts</div></div>
+        <div><div>${msgs.length}</div><div>Total messages</div></div>
+        <div><div>${c.candidates_presented??'—'}</div><div>Candidates</div></div>
+      </div>
+    </div>`;
+  document.getElementById('drawer').classList.add('on');
+  document.getElementById('scrim').classList.add('on');
+}
+
+// ─── CMD-K ───
+function openK(){document.getElementById('cmdk').classList.add('on');document.getElementById('scrim').classList.add('on');$('#kq').value='';renderK();setTimeout(()=>$('#kq').focus(),40);}
+function renderK(){
+  const q=$('#kq').value.toLowerCase();
+  const all=[...D.open,...D.placed,...D.paused,...D.pending];
+  const cl=all.filter(c=>!q||c.name.toLowerCase().includes(q)).slice(0,6).map(c=>({g:'Clients',l:c.name,hint:c.status,f:()=>{closeAll();openDrawer(c.id)}}));
+  const vw=[['today','Today'],['open','Open clients'],['placed','Placed clients'],['upsell','Upsell pipeline'],['paused','Paused / Pending'],['leaderboard','Leaderboard']].filter(([,l])=>!q||l.toLowerCase().includes(q)).map(([v,l])=>({g:'Jump to',l,hint:'G→',f:()=>{closeAll();goView(v)}}));
+  const ac=[['Toggle dark mode','T',toggleTheme],['Filter: Mateo only','1',()=>setHC('Q0aVHyBbFhqJxWuEKLMt')],['Filter: Matt only','2',()=>setHC('uqAeFfwbHnH0lCwSvprz')],['Filter: María Fernanda','3',()=>setHC('YNlj27LBFv74CKLrh1zy')],['Show all HCs','0',()=>setHC('All')]].filter(([l])=>!q||l.toLowerCase().includes(q)).map(([l,h,fn])=>({g:'Actions',l,hint:h,f:()=>{closeAll();fn();}}));
+  kitems=[...cl,...vw,...ac]; ki=0;
+  let lg='';
+  document.getElementById('kres').innerHTML=kitems.map((it,i)=>{
+    let g=''; if(it.g!==lg){g=`<div class="kg">${it.g}</div>`;lg=it.g;}
+    const hcId=it.g==='Clients'?all.find(c=>c.name===it.l)?.hc_id:null;
+    const hcH=hcId?HCC[hcId]:null;
+    const icon=it.g==='Clients'?`<div class="ki-av" style="background:${hcH?.c||'var(--p)'}">${it.l[0]}</div>`:`<div class="ki-ico">→</div>`;
+    return g+`<div class="ki ${i===0?'sel':''}" data-i="${i}">${icon}<span class="ki-lbl">${it.l}</span><span class="ki-hint">${it.hint}</span></div>`;
+  }).join('')||'<div style="padding:14px;text-align:center;color:var(--mut);font-size:13px">No results</div>';
+}
+$('#kq').addEventListener('input',renderK);
+document.getElementById('kres').addEventListener('click',e=>{const item=e.target.closest('.ki');if(item)kitems[+item.dataset.i].f();});
+
+// ─── NAV ───
+const VT={today:'Today',open:'Open clients',placed:'Placed clients',upsell:'Upsell pipeline',paused:'Paused / Pending',leaderboard:'Leaderboard'};
+function goView(v){
+  VIEW=v;
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
+  document.querySelectorAll('.view').forEach(el=>el.classList.toggle('on',el.id==='v-'+v));
+  set('ttl',VT[v]||v);
+  document.getElementById('main').scrollTop=0;
+}
+function closeAll(){document.getElementById('drawer').classList.remove('on');document.getElementById('scrim').classList.remove('on');document.getElementById('cmdk').classList.remove('on');}
+function toggleTheme(){document.documentElement.classList.toggle('dark');}
+function setHC(id){HCF=id;document.querySelectorAll('#hcf button').forEach(b=>b.classList.toggle('on',b.dataset.h===id));renderAll();}
+function onPerChange(){PER=$('#per').value;document.getElementById('dr').style.display=PER==='cu'?'flex':'none';renderToday();}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1500);}
+
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>goView(a.dataset.v)));
+document.getElementById('hcf').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.h)setHC(b.dataset.h);});
+document.getElementById('utog').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;UV=b.dataset.uv;document.querySelectorAll('#utog button').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('utbl-wrap').style.display=UV==='table'?'':'none';document.getElementById('ukanban').style.display=UV==='kanban'?'grid':'none';});
+document.getElementById('phase-pills').addEventListener('click',e=>{const b=e.target.closest('button[data-ph]');if(!b)return;PHASE=(PHASE===b.dataset.ph)?null:b.dataset.ph;renderPlaced();});
+document.addEventListener('click',e=>{
+  const th=e.target.closest('th[data-tbl]');
+  if(th){const t=th.dataset.tbl,k=th.dataset.k;SORT[t]=[k,SORT[t]&&SORT[t][0]===k?-SORT[t][1]:-1];document.querySelectorAll(`th[data-tbl="${t}"]`).forEach(x=>{x.classList.remove('th-asc','th-desc');});th.classList.add(SORT[t][1]===-1?'th-desc':'th-asc');if(t==='open')renderOpen();else if(t==='placed')renderPlaced();else if(t==='upsell')renderUpsell();else renderPaused();}
+});
+document.addEventListener('input',e=>{const v=e.target.dataset.f;if(!v)return;SQ[v]=e.target.value;if(v==='open')renderOpen();else if(v==='placed')renderPlaced();else if(v==='upsell')renderUpsell();else renderPaused();});
+let gp=0;
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openK();return;}
+  if(document.getElementById('cmdk').classList.contains('on')){
+    const os=document.querySelectorAll('.ki');
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){ki=(ki+(e.key==='ArrowDown'?1:-1)+kitems.length)%kitems.length;os.forEach((o,i)=>o.classList.toggle('sel',i===ki));e.preventDefault();}
+    if(e.key==='Enter'&&kitems[ki])kitems[ki].f();
+    if(e.key==='Escape')closeAll();return;
+  }
+  if(e.key==='Escape'){closeAll();return;}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(gp){({t:'today',o:'open',p:'placed',u:'upsell',a:'paused',l:'leaderboard'})[e.key]&&goView(({t:'today',o:'open',p:'placed',u:'upsell',a:'paused',l:'leaderboard'})[e.key]);gp=0;return;}
+  if(e.key==='g'){gp=1;setTimeout(()=>gp=0,900);}
+  if(e.key==='t')toggleTheme();
+  if(e.key==='/'){{const i=document.querySelector('.view.on [data-f]');if(i){e.preventDefault();i.focus();}}}
+  if(e.key==='0')setHC('All');if(e.key==='1')setHC('Q0aVHyBbFhqJxWuEKLMt');if(e.key==='2')setHC('uqAeFfwbHnH0lCwSvprz');if(e.key==='3')setHC('YNlj27LBFv74CKLrh1zy');
+});
+const tip=document.getElementById('tip');
+document.addEventListener('mousemove',e=>{const t=e.target.closest('[data-tip]');if(t&&t.dataset.tip){tip.textContent=t.dataset.tip;tip.style.opacity='1';tip.style.left=Math.min(e.clientX+12,innerWidth-300)+'px';tip.style.top=(e.clientY+15)+'px';}else tip.style.opacity='0';});
+
+// ─── BOOT ───
+load().catch(err=>{set('stime','Error loading data');document.getElementById('sdot').style.background='var(--red)';console.error('Load error:',err);});
+</script>
+</body>
+</html>
