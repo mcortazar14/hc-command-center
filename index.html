@@ -436,9 +436,9 @@ async function sbGet(table, qs='') {
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
   const [clients, upsell, msgs] = await Promise.all([
-    sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at&limit=2000'),
+    sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&limit=2000'),
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&stage=neq.N%2FA&limit=2000'),
-    sbGet('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction&is_conversation=eq.true&date_added=gte.'+ago56+'&limit=2000'),
+    sbGet('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&limit=2000'),
   ]);
   const uMap={};
   for(const u of upsell) uMap[u.client_id]=u;
@@ -508,15 +508,17 @@ function oAlert(c){
 function pAlert(c){
   const d=dago(c.last_conv_at);
   if(d===null||d>30)return pill('p-red',d===null?'No contact record':`No contact in ${d} days`,true);
-  if(d>15)return pill('p-amb',`${d}d since last contact`,true);
+  if(d>=15)return pill('p-amb',`${d}d since last contact`,true);
   return pill('p-grn','Healthy',true);
 }
 function phase(c){
   if(!c.placement_date)return'No Phase';
-  const dc=dago(c.last_conv_at),dp=dago(c.placement_date);
-  if((dc===null||dc>59)&&dp>60)return'Cold';
+  const dp=dago(c.placement_date);
   if(dp<=30)return'M1';if(dp<=60)return'M2';return'M3+';
 }
+function isCold(c){const dc=dago(c.last_conv_at);return phase(c)==='M3+'&&(dc===null||dc>59);}
+function isBulkDate(dt){if(!dt)return false;const d=(dt||'').slice(0,10);return d==='2026-09-29'||d==='2026-09-30';}
+function isConv(m){const tp=(m.message_type||'').toLowerCase();return(tp.includes('call')||tp==='llamada')&&(m.duration_seconds==null||m.duration_seconds>=30);}
 function uUrgency(u){
   let s=0;
   if(['Pitched','Active'].includes(u.stage))s+=50;
@@ -552,14 +554,14 @@ function deriv(c,k){
   if(k==='_placed_sort'){
     const hasU=c._u&&['Pitched','Detected','Active'].includes(c._u.stage);
     const dc=dago(c.last_conv_at);const dp=dago(c.placement_date)??9999;const ph=phase(c);
-    if(hasU)return 3000000-(dc??9999);
-    if(ph!=='Cold'&&(dc===null||dc>30))return 2000000-dp;
-    if(ph!=='Cold')return 1000000-dp;
+    if(hasU)return 3000000-dp;
+    if(!isCold(c)&&(dc===null||dc>30))return 2000000-dp;
+    if(!isCold(c))return 1000000-dp;
     return -dp;
   }
   if(k==='_urgency')return uUrgency(c);
   if(k==='_cdays')return dago(c.last_external_contact)??9999;
-  if(k==='_wdays')return dago(c.created_at)??0;
+  if(k==='_wdays')return c.pending_since?dago(c.pending_since):0;
   if(k==='_notes')return c._u?.notes||c.notes||'';
   if(k==='_flag')return!c.hc_id?0:1;
   return null;
@@ -591,15 +593,15 @@ function renderToday(){
 
   const inR=m=>{const d=new Date(m.date_added);return d>=s&&d<=e;};
   const fM=HCF==='All'?D.msgs:D.msgs.filter(m=>m.hc_id===HCF);
-  const conv=fM.filter(m=>m.is_conversation&&inR(m)).length;
+  const conv=fM.filter(m=>isConv(m)&&inR(m)).length;
   const len=e-s;
   const ps=new Date(s.getTime()-len),pe=new Date(e.getTime()-len);
-  const prevConv=(HCF==='All'?D.msgs:D.msgs.filter(m=>m.hc_id===HCF)).filter(m=>{const d=new Date(m.date_added);return d>=ps&&d<=pe&&m.is_conversation;}).length;
+  const prevConv=(HCF==='All'?D.msgs:D.msgs.filter(m=>m.hc_id===HCF)).filter(m=>{const d=new Date(m.date_added);return d>=ps&&d<=pe&&isConv(m);}).length;
   const delta=prevConv>0?((conv-prevConv)/prevConv*100).toFixed(1):null;
   const up=conv>=prevConv;
 
   const uFilt=HCF==='All'?D.upsell:D.upsell.filter(u=>u.hc_id===HCF);
-  const pitches=uFilt.filter(u=>u.stage==='Pitched'&&u.stage_since&&new Date(u.stage_since)>=s&&new Date(u.stage_since)<=e).length;
+  const pitches=uFilt.filter(u=>u.stage==='Pitched'&&u.stage_since&&!isBulkDate(u.stage_since)&&new Date(u.stage_since)>=s&&new Date(u.stage_since)<=e).length;
 
   document.getElementById('kpis').innerHTML=[
     {l:'Conversations '+(PER.startsWith('t')||PER.startsWith('l')?'/ wk':'/ mo'),v:conv,delta:delta?(up?'+':'')+delta+'%':null,up,c:'#7E00B0',pct:conv>0?Math.min(conv/52,1):0},
@@ -658,7 +660,7 @@ function renderToday(){
   weeks.push({s:pws,e:pwe,l:'Now'});
   const hcList=Object.entries(HCC).filter(([id])=>HCF==='All'||id===HCF);
   const wData={};
-  for(const[id]of hcList) wData[id]=weeks.map(w=>D.msgs.filter(m=>m.hc_id===id&&new Date(m.date_added)>=w.s&&new Date(m.date_added)<w.e).length);
+  for(const[id]of hcList) wData[id]=weeks.map(w=>D.msgs.filter(m=>m.hc_id===id&&isConv(m)&&new Date(m.date_added)>=w.s&&new Date(m.date_added)<w.e).length);
   const maxV=Math.max(...hcList.flatMap(([id])=>wData[id]),1);
   const W=400,H=170;
   const bw=(W-35)/8;
@@ -711,17 +713,17 @@ function renderPlaced(){
     document.getElementById('nc-cts').innerHTML=Object.entries(byHC).map(([id,n])=>{const h=HCC[id];return`<div class="nc-hc"><b style="color:${h?.c||'var(--txt)'}">${n}</b><span>${h?.s||'?'}</span></div>`;}).join('');
   } else nce.style.display='none';
 
-  const phases=['M1','M2','M3+','No Phase','Cold'];
+  const phases=['M1','M2','M3+','No Phase'];
   const pc={};for(const c of all)pc[phase(c)]=(pc[phase(c)]||0)+1;
   document.getElementById('phase-pills').innerHTML=phases.map(p=>`<button class="${(!PHASE||PHASE===p)?'on':''}" data-ph="${p}">${p} <span style="opacity:.6">${pc[p]||0}</span></button>`).join('');
 
   const rows=PHASE?all.filter(c=>phase(c)===PHASE):all;
-  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n',Cold:'p-red'};
+  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n'};
   document.getElementById('tb-placed').innerHTML=sortArr(rows,'placed').map(c=>{
     const ph=phase(c);
     const pd=dago(c.placement_date);
     const dc=dago(c.last_conv_at);
-    const rcls=(dc===null||dc>30)?'row-urgent':(dc>15?'row-warn':'');
+    const rcls=(dc===null||dc>30)?'row-urgent':(dc>=15?'row-warn':'');
     return`<tr class="${rcls}" onclick="openDrawer('${c.id}')">
       <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
       <td>${pill(phC[ph]||'p-n',ph)}</td>
@@ -780,10 +782,10 @@ function renderPaused(){
     <td>${fmtAgo(c.last_conv_at)}</td>
   </tr>`).join('');
   document.getElementById('tb-pending').innerHTML=sortArr(q,'pending').map(c=>{
-    const wd=dago(c.created_at)||0;
+    const wd=c.pending_since?dago(c.pending_since):null;
     return`<tr onclick="openDrawer('${c.id}')">
       <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
-      <td class="num"><b>${wd}</b> d</td>
+      <td class="num">${wd?`<b>${wd}</b> days in Pending`:'<span style="color:var(--mut2)">—</span>'}</td>
       <td>${!c.hc_id?pill('p-red','Assign HC',true):wd>14?pill('p-amb','No contact yet',true):'—'}</td>
     </tr>`;
   }).join('');
@@ -792,14 +794,14 @@ function renderPaused(){
 // ─── LEADERBOARD ───
 function renderLB(){
   document.getElementById('lb').innerHTML=Object.entries(HCC).map(([id,h],i)=>{
-    const mo=D.open.filter(c=>c.hc_id===id);
+    const mo=D.placed.filter(c=>c.hc_id===id);
     const mm=D.msgs.filter(m=>m.hc_id===id);
     const mu=D.upsell.filter(u=>u.hc_id===id);
     const recent=mo.filter(c=>c.last_conv_at&&dago(c.last_conv_at)<=30).length;
     const hp=mo.length>0?Math.round(recent/mo.length*100):0;
     const hcls=hp>=70?'p-grn':hp>=50?'p-amb':'p-red';
     const hlbl=hp>=70?'Healthy':hp>=50?'Needs attention':'At risk';
-    const c7=mm.filter(m=>new Date(m.date_added)>new Date(Date.now()-7*864e5)).length;
+    const c7=mm.filter(m=>isConv(m)&&new Date(m.date_added)>new Date(Date.now()-7*864e5)).length;
     const uc=mu.filter(u=>u.stage==='Closed').length;
     const ghosts=mo.filter(c=>!c.last_conv_at||dago(c.last_conv_at)>30).length;
     return`<div class="lb-card">
@@ -833,14 +835,15 @@ async function openDrawer(id){
   if(u&&['Pitched','Active'].includes(u.stage)){
     const cd=u.last_external_contact?dago(u.last_external_contact):null;
     nba=`Follow up on <b>${u.stage}</b> upsell opportunity.${cd!==null?` Last external contact was ${cd} days ago.`:' No external contact logged yet.'}${u.notes?` Notes: ${u.notes}`:''}`;
-  } else if(d===null){nba=c.status==='closed'?'Re-engage: <b>no conversation on record</b> for this placed client.':'First outreach needed — <b>no conversation ever recorded</b> for this client.';}
-  else if(d>30){nba=`Re-engage: last conversation was <b>${d} days ago</b>. Client may need a check-in.`;}
-  else if(u&&u.stage==='Detected'){const _sf=u.stage_since?fmtDate(u.stage_since):'';const _ss=_sf&&_sf!=='Sep 29, 2026'?` Stage since ${_sf}.`:'';nba=`Upsell opportunity detected. Consider pitching an additional hire.${_ss}`;}
+  } else if(d===null){if(c.status==='closed')nba='Re-engage: <b>no conversation on record</b> for this placed client.';}
+  else if(d>30){if(c.status==='closed')nba=`Re-engage: last conversation was <b>${d} days ago</b>. Client may need a check-in.`;}
+  else if(u&&u.stage==='Detected'){const _sf=u.stage_since&&!isBulkDate(u.stage_since)?fmtDate(u.stage_since):'';const _ss=_sf?` Stage since ${_sf}.`:'';nba=`Upsell opportunity detected. Consider pitching an additional hire.${_ss}`;}
+  else if(c.status==='open'){const _cp=c.candidates_presented!=null?`<b>${c.candidates_presented}</b> candidate${c.candidates_presented!==1?'s':''} presented`:'';const _ad=c.active_days>0?`<b>${c.active_days}</b> days active`:'';const _parts=[_cp,_ad].filter(Boolean);nba='Scouting in progress'+(_parts.length?' — '+_parts.join(', ')+'.':'.');}
   else{nba='Client is active. Last conversation '+(d===0?'today':d+' days ago')+'. Keep the momentum.';}
 
   const chnC={'Llamada':'#7E00B0',Call:'#7E00B0',SMS:'#4D65FF',Email:'#4D65FF',GHL:'#f58220'};
   const ph=c.status==='closed'?phase(c):null;
-  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n',Cold:'p-red'};
+  const phC={M1:'p-grn',M2:'p-p','M3+':'p-p','No Phase':'p-n'};
   const conv=msgs.filter(m=>m.is_conversation).length;
   const attempts=msgs.filter(m=>!m.is_conversation).length;
 
@@ -848,17 +851,17 @@ async function openDrawer(id){
     <div class="dh">
       <div class="dh-top"><button class="dh-x" onclick="closeAll()">✕</button></div>
       <h2>${c.name}</h2>
-      <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='open'?oAlert(c):c.status==='closed'?pAlert(c):pill('p-n',c.status)}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
+      <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='closed'?pAlert(c):c.status!=='open'?pill('p-n',c.status):''}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
     </div>
     <div class="ds"><h4>Next recommended action</h4><div class="nba">${nba}</div></div>
     <div class="ds"><h4>Activity timeline</h4>
       ${msgs.length===0?'<div style="color:var(--mut);font-size:13px">No activity on record.</div>':msgs.slice(0,8).map(m=>{
-        const tp=m.message_type||'MSG';const co=chnC[tp]||'#6b6875';
-        return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tp.slice(0,3)}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;
+        const tp=m.message_type||'MSG';const tpd=(tp==='Llamada'?'Call':tp);const co=chnC[tp]||'#6b6875';
+        return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tpd.slice(0,3)}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;
       }).join('')}
     </div>
     <div class="ds"><h4>Upsell stage history</h4>
-      ${hist.length===0?'<div style="color:var(--mut);font-size:13px">No upsell history.</div>':`<div class="stg-flow">${hist.map((h2,i)=>{const isBulk=h2.changed_at&&fmtDate(h2.changed_at)==='Sep 29, 2026';return(i>0?'<small>→</small>':'')+pill(USC[h2.stage]||'p-n',h2.stage)+(isBulk?'':' <small>'+fmtDate(h2.changed_at)+'</small>');}).join('')}</div>`}
+      ${hist.length===0?'<div style="color:var(--mut);font-size:13px">No upsell history.</div>':`<div class="stg-flow">${hist.map((h2,i)=>{const isBulk=isBulkDate(h2.changed_at);return(i>0?'<small>→</small>':'')+pill(USC[h2.stage]||'p-n',h2.stage)+(isBulk?'':' <small>'+fmtDate(h2.changed_at)+'</small>');}).join('')}</div>`}
     </div>
     <div class="ds" style="border:0"><h4>Stats</h4>
       <div class="stat-g">
