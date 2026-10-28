@@ -116,6 +116,8 @@ tr.row-warn td:first-child{border-left:3px solid var(--amb)}
 .view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
 .view-toggle button{border:0;border-radius:0;padding:4px 11px;font-size:12.5px;background:transparent;border-right:1px solid var(--line)}
 .view-toggle button:last-child{border-right:0}.view-toggle button.on{background:var(--p);color:#fff}
+.jobs-btn{font-size:11px;padding:2px 7px;margin-top:4px;background:var(--pl);border-color:rgba(126,0,176,.2);color:var(--p)}
+.dark .jobs-btn{color:#d9a8f0;background:#2a1838;border-color:rgba(217,168,240,.2)}
 .hero-bar{background:linear-gradient(135deg,var(--p2),var(--p));color:#fff;border-radius:10px;padding:16px 20px;margin-bottom:12px}
 .hero-bar .hl{font-size:12.5px;opacity:.8;margin-bottom:3px}
 .hero-bar .hv{font-size:26px;font-weight:700;margin-bottom:6px}
@@ -440,8 +442,12 @@ async function load() {
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&stage=neq.N%2FA&limit=2000'),
     sbGet('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&limit=2000'),
   ]);
+  const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
+  console.log(`[client_jobs] ${jobsRaw.length} Open jobs loaded`);
   const uMap={};
   for(const u of upsell) uMap[u.client_id]=u;
+  const jobsMap={};
+  for(const j of jobsRaw){if(!jobsMap[j.client_id])jobsMap[j.client_id]=[];jobsMap[j.client_id].push(j);}
   // Build recent-conv map from messages (last 56 days loaded) — fills gaps where clients.last_conv_at is stale
   const rcm={};
   for(const m of msgs){if(!rcm[m.client_id]||m.date_added>rcm[m.client_id])rcm[m.client_id]=m.date_added;}
@@ -449,7 +455,7 @@ async function load() {
     const r=rcm[c.id];
     return{...c,last_conv_at:(r&&(!c.last_conv_at||r>c.last_conv_at))?r:c.last_conv_at};
   }
-  D.open    = clients.filter(c=>c.status==='open').map(c=>({...mergeConv(c),_u:uMap[c.id]||null}));
+  D.open    = clients.filter(c=>c.status==='open').map(c=>({...mergeConv(c),_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[]}));
   D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>({...mergeConv(c),_u:uMap[c.id]||null}));
   D.paused  = clients.filter(c=>c.status==='paused').map(mergeConv);
   D.pending = clients.filter(c=>c.status==='pending').map(mergeConv);
@@ -691,11 +697,23 @@ function renderOpen(){
   </div>`).join('');
   document.getElementById('tb-open').innerHTML=sortArr(data,'open').map(c=>{
     const notes=c._u?.notes||'—';
+    const openJobs=c._jobs||[];
+    const isMulti=openJobs.length>1;
+    let maxDays,totalCands;
+    if(openJobs.length>0){
+      maxDays=Math.max(...openJobs.map(j=>j.active_days||0));
+      totalCands=openJobs.reduce((s,j)=>s+(j.candidates_presented||0),0);
+    } else {
+      maxDays=c.active_days||0;
+      totalCands=c.candidates_presented;
+    }
+    const daysTd=maxDays>0?`<b>${maxDays}</b> d`:'<span style="color:var(--mut2)">—</span>';
+    const candTd=openJobs.length>0?(totalCands>0?totalCands:'<span style="color:var(--mut2)">—</span>'):(totalCands!=null?totalCands:'<span style="color:var(--mut2)">—</span>');
+    const nameTd=`${c.name}${isMulti?`<br><span class="pill p-n" style="font-size:10.5px;padding:1px 7px;margin-top:3px;display:inline-flex">${openJobs.length} roles</span>`:''}`;
     return`<tr onclick="openDrawer('${c.id}')">
-      <td class="cl">${c.name}</td><td>${hcBadge(c.hc_id)}</td>
+      <td class="cl">${nameTd}</td><td>${hcBadge(c.hc_id)}</td>
       <td>${c.client_type?pill('p-n',c.client_type):'<span style="color:var(--mut2)">—</span>'}</td>
-      <td class="num">${c.active_days>0?`<b>${c.active_days}</b> d`:'<span style="color:var(--mut2)">—</span>'}</td>
-      <td class="num">${c.candidates_presented!=null?c.candidates_presented:'<span style="color:var(--mut2)">—</span>'}</td>
+      <td class="num">${daysTd}</td><td class="num">${candTd}</td>
       <td class="cm-cell" data-tip="${notes}">${notes}</td>
       <td><span style="color:var(--mut2);font-size:12px">Not connected yet</span></td>
     </tr>`;
@@ -821,6 +839,18 @@ function ring(pct,col,sz){
 }
 
 // ─── DRAWER ───
+function roleNameShort(jn){const i=(jn||'').indexOf(' - ');return i>0?jn.slice(0,i).trim():jn||'—';}
+function dayBarHtml(days){
+  const d=days||0;
+  const col=d<30?'var(--grn)':d<=90?'var(--amb)':'var(--red)';
+  const pct=Math.min(d/200*100,100);
+  return`<div style="display:flex;align-items:center;gap:7px;margin:4px 0">
+    <div style="flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+    </div>
+    <span style="font-size:11px;font-weight:600;color:${col};white-space:nowrap;min-width:28px;text-align:right">${d}d</span>
+  </div>`;
+}
 async function openDrawer(id){
   const c=[...D.open,...D.placed,...D.paused,...D.pending].find(x=>x.id===id);
   if(!c)return;
@@ -847,22 +877,43 @@ async function openDrawer(id){
   const conv=msgs.filter(m=>m.is_conversation).length;
   const attempts=msgs.filter(m=>!m.is_conversation).length;
 
-  document.getElementById('dc').innerHTML=`
-    <div class="dh">
-      <div class="dh-top"><button class="dh-x" onclick="closeAll()">✕</button></div>
-      <h2>${c.name}</h2>
-      <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='closed'?pAlert(c):c.status!=='open'?pill('p-n',c.status):''}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
-    </div>
-    <div class="ds"><h4>Next recommended action</h4><div class="nba">${nba}</div></div>
+  const openRoles=[...(c._jobs||[])].sort((a,b)=>(b.active_days||0)-(a.active_days||0));
+  const isOpen=c.status==='open';
+  const maxDays=openRoles.length>0?Math.max(...openRoles.map(j=>j.active_days||0)):0;
+  const oldestCol=maxDays<30?'var(--grn)':maxDays<=90?'var(--amb)':'var(--red)';
+  const totalCands=openRoles.reduce((s,j)=>s+(j.candidates_presented||0),0);
+  const nonesCount=openRoles.filter(j=>j.candidates_presented==null||j.candidates_presented===0).length;
+  const rolesSection=openRoles.length>0?`
+    <div class="ds">
+      <h4>Open roles (${openRoles.length})</h4>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${openRoles.map(j=>{
+          const cr=j.created_on?`Created ${fmtDate(j.created_on)} · `:'';
+          const cn=j.candidates_presented!=null?`${j.candidates_presented} candidate${j.candidates_presented!==1?'s':''} presented`:'No data';
+          return`<div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 12px">
+            <div style="font-size:13px;font-weight:600;line-height:1.3">${roleNameShort(j.job_name)}</div>
+            ${dayBarHtml(j.active_days)}
+            <div style="font-size:11.5px;color:var(--mut)">${cr}${cn}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`:'';
+  const timelineSection=isOpen?'':`
     <div class="ds"><h4>Activity timeline</h4>
       ${msgs.length===0?'<div style="color:var(--mut);font-size:13px">No activity on record.</div>':msgs.slice(0,8).map(m=>{
         const tp=m.message_type||'MSG';const tpd=(tp==='Llamada'?'Call':tp);const co=chnC[tp]||'#6b6875';
         return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tpd.slice(0,3)}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;
       }).join('')}
-    </div>
-    <div class="ds"><h4>Upsell stage history</h4>
-      ${hist.length===0?'<div style="color:var(--mut);font-size:13px">No upsell history.</div>':`<div class="stg-flow">${hist.map((h2,i)=>{const isBulk=isBulkDate(h2.changed_at);return(i>0?'<small>→</small>':'')+pill(USC[h2.stage]||'p-n',h2.stage)+(isBulk?'':' <small>'+fmtDate(h2.changed_at)+'</small>');}).join('')}</div>`}
-    </div>
+    </div>`;
+  const statsSection=isOpen?`
+    <div class="ds" style="border:0"><h4>Stats</h4>
+      <div class="stat-g">
+        <div><div>${openRoles.length||'—'}</div><div>Open roles</div></div>
+        <div><div style="color:${oldestCol}">${maxDays>0?maxDays+'d':'—'}</div><div>Oldest role</div></div>
+        <div><div>${totalCands>0?totalCands:'—'}</div><div>Candidates presented</div></div>
+        <div><div style="color:var(--mut);font-size:12px">Not connected yet</div><div>Check-ins</div></div>
+      </div>
+    </div>`:`
     <div class="ds" style="border:0"><h4>Stats</h4>
       <div class="stat-g">
         <div><div>${conv}</div><div>Conversations</div></div>
@@ -871,6 +922,19 @@ async function openDrawer(id){
         <div><div>${c.candidates_presented??'—'}</div><div>Candidates</div></div>
       </div>
     </div>`;
+  document.getElementById('dc').innerHTML=`
+    <div class="dh">
+      <div class="dh-top"><button class="dh-x" onclick="closeAll()">✕</button></div>
+      <h2>${c.name}</h2>
+      <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='closed'?pAlert(c):c.status!=='open'?pill('p-n',c.status):''}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
+    </div>
+    ${rolesSection}
+    <div class="ds"><h4>Next recommended action</h4><div class="nba">${nba}</div></div>
+    ${timelineSection}
+    <div class="ds"><h4>Upsell stage history</h4>
+      ${hist.length===0?'<div style="color:var(--mut);font-size:13px">No upsell history.</div>':`<div class="stg-flow">${hist.map((h2,i)=>{const isBulk=isBulkDate(h2.changed_at);return(i>0?'<small>→</small>':'')+pill(USC[h2.stage]||'p-n',h2.stage)+(isBulk?'':' <small>'+fmtDate(h2.changed_at)+'</small>');}).join('')}</div>`}
+    </div>
+    ${statsSection}`;
   document.getElementById('drawer').classList.add('on');
   document.getElementById('scrim').classList.add('on');
 }
