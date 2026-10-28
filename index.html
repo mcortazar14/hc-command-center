@@ -308,8 +308,8 @@ tr.row-warn td:first-child{border-left:3px solid var(--amb)}
         <th data-tbl="open" data-k="name">Client</th>
         <th data-tbl="open" data-k="hc_id">HC</th>
         <th data-tbl="open" data-k="client_type">Type</th>
-        <th data-tbl="open" data-k="active_days" class="num">Days active</th>
-        <th data-tbl="open" data-k="candidates_presented" class="num">Candidates</th>
+        <th data-tbl="open" data-k="_open_days" class="num">Days active</th>
+        <th data-tbl="open" data-k="_open_cands" class="num">Candidates</th>
         <th data-tbl="open" data-k="_notes">Notes</th>
         <th>Check-ins</th>
       </tr></thead><tbody id="tb-open"></tbody></table>
@@ -426,6 +426,9 @@ let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[] };
 let SORT = { open:['name',1], placed:['_placed_sort',-1], upsell:['_urgency',-1], paused:['name',1], pending:['_wdays',-1] };
 let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'table';
 let ki = 0, kitems = [];
+function _tdKey(){return 'today_done_'+TODAY.toLocaleDateString('en-CA');}
+function _tdGet(){try{return new Set(JSON.parse(localStorage.getItem(_tdKey())||'[]'));}catch{return new Set();}}
+function _tdToggle(cid){const k=_tdKey();const s=_tdGet();s.has(cid)?s.delete(cid):s.add(cid);localStorage.setItem(k,JSON.stringify([...s]));}
 
 async function sbGet(table, qs='') {
   const r = await fetch(`${SB}/rest/v1/${table}${qs}`, {
@@ -434,14 +437,26 @@ async function sbGet(table, qs='') {
   if (!r.ok) { const t=await r.text(); throw new Error(table+': '+t.slice(0,120)); }
   return r.json();
 }
+async function sbGetAll(table, qs, pageSize=1000) {
+  const all=[]; let offset=0;
+  while(true){
+    const sep=qs.includes('?')?'&':'?';
+    const page=await sbGet(table,`${qs}${sep}limit=${pageSize}&offset=${offset}`);
+    all.push(...page);
+    if(page.length<pageSize)break;
+    offset+=pageSize;
+  }
+  return all;
+}
 
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
   const [clients, upsell, msgs] = await Promise.all([
     sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&limit=2000'),
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&stage=neq.N%2FA&limit=2000'),
-    sbGet('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&limit=2000'),
+    sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
   ]);
+  console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
   console.log(`[client_jobs] ${jobsRaw.length} Open jobs loaded`);
   const uMap={};
@@ -474,7 +489,7 @@ async function load() {
     document.getElementById('bn-names').textContent=ua.slice(0,4).map(c=>c.name).join(', ')+(ua.length>4?'…':'');
   }
   // Badges
-  set('b-today', D.placed.filter(c=>{const ph=phase(c);const d=dago(c.last_conv_at);return(ph==='M1'||ph==='M2')&&(d===null||d>30);}).length||'—');
+  // b-today is set in renderToday() so it matches the list count exactly
   set('b-open',   D.open.length);
   set('b-placed', D.placed.length);
   set('b-upsell', D.upsell.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage)).length);
@@ -568,7 +583,9 @@ function deriv(c,k){
   if(k==='_urgency')return uUrgency(c);
   if(k==='_cdays')return dago(c.last_external_contact)??9999;
   if(k==='_wdays')return c.pending_since?dago(c.pending_since):0;
-  if(k==='_notes')return c._u?.notes||c.notes||'';
+  if(k==='_notes'){const has=c._u&&!['Closed','Not Interested','Failed Negotiation','N/A'].includes(c._u?.stage);return has?c._u?.notes||'':'zzz';}
+  if(k==='_open_days'){const js=c._jobs||[];return js.length>0?Math.max(...js.map(j=>j.active_days||0)):c.active_days||0;}
+  if(k==='_open_cands'){const js=c._jobs||[];return js.length>0?js.reduce((s,j)=>s+(j.candidates_presented||0),0):(c.candidates_presented??-1);}
   if(k==='_flag')return!c.hc_id?0:1;
   return null;
 }
@@ -626,6 +643,8 @@ function renderToday(){
   const pg2=pfilt.filter(c=>!c._u||!['Pitched','Active','Detected'].includes(c._u.stage));
   const byConvD=(a,b)=>(dago(b.last_conv_at)??9999)-(dago(a.last_conv_at)??9999);
   const top=[...pg1.sort(byConvD),...pg2.sort(byConvD)].slice(0,5);
+  set('b-today', top.length||'—');
+  const _done=_tdGet();
   document.getElementById('inbox').innerHTML=top.length===0
     ?'<div style="padding:18px;text-align:center;color:var(--mut)">No placed clients to show.</div>'
     :top.map((c,i)=>{
@@ -647,8 +666,9 @@ function renderToday(){
         action='Placed client check-in';
         detail=`${c.name} · last conversation ${d} days ago`;
       }
-      return`<div class="it" onclick="openDrawer('${c.id}')">
-        <span class="chk" onclick="event.stopPropagation();this.parentNode.classList.toggle('done');toast('Marked done')"></span>
+      const isDone=_done.has(c.id);
+      return`<div class="it${isDone?' done':''}" onclick="openDrawer('${c.id}')">
+        <span class="chk" onclick="event.stopPropagation();_tdToggle('${c.id}');this.parentNode.classList.toggle('done');toast(this.parentNode.classList.contains('done')?'Marked done':'Unmarked')"></span>
         <span class="n">${i+1}</span>
         <div class="it-txt"><b>${action}</b><span>${detail}</span></div>
         ${h?`<span class="av" style="background:${h.c};margin-left:6px" data-tip="${h.s}">${h.s[0]}</span>`:''}
@@ -696,7 +716,8 @@ function renderOpen(){
     ${k.nc?`<div class="tgt" style="font-size:11px">Not connected yet</div>`:''}
   </div>`).join('');
   document.getElementById('tb-open').innerHTML=sortArr(data,'open').map(c=>{
-    const notes=c._u?.notes||'—';
+    const hasActiveUpsell=c._u&&!['Closed','Not Interested','Failed Negotiation','N/A'].includes(c._u.stage);
+    const notes=(hasActiveUpsell&&c._u?.notes)?`Upsell: ${c._u.notes}`:'—';
     const openJobs=c._jobs||[];
     const isMulti=openJobs.length>1;
     let maxDays,totalCands;
@@ -811,20 +832,23 @@ function renderPaused(){
 
 // ─── LEADERBOARD ───
 function renderLB(){
-  document.getElementById('lb').innerHTML=Object.entries(HCC).map(([id,h],i)=>{
+  const lbData=Object.entries(HCC).map(([id,h])=>{
     const mo=D.placed.filter(c=>c.hc_id===id);
     const mm=D.msgs.filter(m=>m.hc_id===id);
     const mu=D.upsell.filter(u=>u.hc_id===id);
     const recent=mo.filter(c=>c.last_conv_at&&dago(c.last_conv_at)<=30).length;
     const hp=mo.length>0?Math.round(recent/mo.length*100):0;
-    const hcls=hp>=70?'p-grn':hp>=50?'p-amb':'p-red';
-    const hlbl=hp>=70?'Healthy':hp>=50?'Needs attention':'At risk';
     const c7=mm.filter(m=>isConv(m)&&new Date(m.date_added)>new Date(Date.now()-7*864e5)).length;
     const uc=mu.filter(u=>u.stage==='Closed').length;
     const ghosts=mo.filter(c=>!c.last_conv_at||dago(c.last_conv_at)>30).length;
+    return{id,h,hp,mo,c7,uc,ghosts};
+  }).sort((a,b)=>b.hp-a.hp);
+  document.getElementById('lb').innerHTML=lbData.map(({id,h,hp,mo,c7,uc,ghosts},i)=>{
+    const hcls=hp>=70?'p-grn':hp>=50?'p-amb':'p-red';
+    const hlbl=hp>=70?'Healthy':hp>=50?'Needs attention':'At risk';
     return`<div class="lb-card">
       <div class="lb-top">
-        <div data-tip="Health score: % of open clients with a conversation in the last 30 days">${ring(hp,h.c,76)}</div>
+        <div data-tip="Health score: % of placed clients with a conversation in the last 30 days">${ring(hp,h.c,76)}</div>
         <div class="lb-info"><div class="lb-rank">#${i+1} · Portfolio health</div>
           <div class="lb-name"><span class="av" style="background:${h.c}">${h.s[0]}</span>${h.s}</div>
           ${pill(hcls,hlbl,true)}</div>
@@ -868,7 +892,15 @@ async function openDrawer(id){
   } else if(d===null){if(c.status==='closed')nba='Re-engage: <b>no conversation on record</b> for this placed client.';}
   else if(d>30){if(c.status==='closed')nba=`Re-engage: last conversation was <b>${d} days ago</b>. Client may need a check-in.`;}
   else if(u&&u.stage==='Detected'){const _sf=u.stage_since&&!isBulkDate(u.stage_since)?fmtDate(u.stage_since):'';const _ss=_sf?` Stage since ${_sf}.`:'';nba=`Upsell opportunity detected. Consider pitching an additional hire.${_ss}`;}
-  else if(c.status==='open'){const _cp=c.candidates_presented!=null?`<b>${c.candidates_presented}</b> candidate${c.candidates_presented!==1?'s':''} presented`:'';const _ad=c.active_days>0?`<b>${c.active_days}</b> days active`:'';const _parts=[_cp,_ad].filter(Boolean);nba='Scouting in progress'+(_parts.length?' — '+_parts.join(', ')+'.':'.');}
+  else if(c.status==='open'){
+    const _jbs=c._jobs||[];
+    const _maxD=_jbs.length>0?Math.max(..._jbs.map(j=>j.active_days||0)):c.active_days||0;
+    const _totC=_jbs.length>0?_jbs.reduce((s,j)=>s+(j.candidates_presented||0),0):(c.candidates_presented??null);
+    const _cp=_totC>0?`<b>${_totC}</b> candidate${_totC!==1?'s':''} presented`:'';
+    const _ad=_maxD>0?`<b>${_maxD}</b> days active`:'';
+    const _parts=[_cp,_ad].filter(Boolean);
+    nba='Scouting in progress'+(_parts.length?' — '+_parts.join(', ')+'.':'.');
+  }
   else{nba='Client is active. Last conversation '+(d===0?'today':d+' days ago')+'. Keep the momentum.';}
 
   const chnC={'Llamada':'#7E00B0',Call:'#7E00B0',SMS:'#4D65FF',Email:'#4D65FF',GHL:'#f58220'};
