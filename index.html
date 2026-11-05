@@ -480,6 +480,8 @@ table tbody td{padding:11px 12px;vertical-align:top}
         <th data-tbl="open" data-k="name">Client</th>
         <th data-tbl="open" data-k="_open_days" class="num">Active days</th>
         <th data-tbl="open" data-k="_open_cands" class="num">Candidates</th>
+        <th data-tbl="open" data-k="_lc">Last contact</th>
+        <th data-tbl="open" data-k="_lcv">Last conv.</th>
       </tr></thead><tbody id="tb-open"></tbody></table>
     </div>
   </div>
@@ -509,8 +511,10 @@ table tbody td{padding:11px 12px;vertical-align:top}
     <div class="tbl-wrap">
       <table><thead><tr>
         <th data-tbl="placed" data-k="name">Client</th>
+        <th data-tbl="placed" data-k="_phase">Phase</th>
         <th data-tbl="placed" data-k="_pdays" class="num">Days placed</th>
-        <th data-tbl="placed" data-k="last_conv_at">Last contact</th>
+        <th data-tbl="placed" data-k="_lc">Last contact</th>
+        <th data-tbl="placed" data-k="_lcv">Last conv.</th>
         <th data-tbl="placed" data-k="_alert">Status</th>
       </tr></thead><tbody id="tb-placed"></tbody></table>
     </div>
@@ -561,7 +565,8 @@ table tbody td{padding:11px 12px;vertical-align:top}
     <div class="tbl-wrap" style="margin-bottom:22px;border-top:0">
       <table><thead><tr>
         <th data-tbl="paused" data-k="name">Client</th>
-        <th data-tbl="paused" data-k="last_conv_at">Last contact</th>
+        <th data-tbl="paused" data-k="_lc">Last contact</th>
+        <th data-tbl="paused" data-k="_lcv">Last conv.</th>
         <th class="th-razon-pausa">Pause reason</th>
       </tr></thead><tbody id="tb-paused"></tbody></table>
     </div>
@@ -570,6 +575,8 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <table><thead><tr>
         <th data-tbl="pending" data-k="name">Client</th>
         <th data-tbl="pending" data-k="_wdays" class="num">Days waiting</th>
+        <th data-tbl="pending" data-k="_lc">Last contact</th>
+        <th data-tbl="pending" data-k="_lcv">Last conv.</th>
         <th data-tbl="pending" data-k="_flag">Priority</th>
       </tr></thead><tbody id="tb-pending"></tbody></table>
     </div>
@@ -661,10 +668,11 @@ async function sbGetAll(table, qs, pageSize=1000) {
 
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
-  const [clients, upsell, msgs] = await Promise.all([
+  const [clients, upsell, msgs, checkinsRaw] = await Promise.all([
     sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&status=not.in.(canceled,non_client)&limit=2000'),
-    sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&stage=neq.N%2FA&limit=2000'),
+    sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
+    sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
@@ -680,10 +688,21 @@ async function load() {
     const r=rcm[c.id];
     return{...c,last_conv_at:(r&&(!c.last_conv_at||r>c.last_conv_at))?r:c.last_conv_at};
   }
-  D.open    = clients.filter(c=>c.status==='open').map(c=>({...mergeConv(c),_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[]}));
-  D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>({...mergeConv(c),_u:uMap[c.id]||null}));
-  D.paused  = clients.filter(c=>c.status==='paused').map(mergeConv);
-  D.pending = clients.filter(c=>c.status==='pending').map(mergeConv);
+  // Checkin contact maps — only past/today dates count as actual contact
+  const ciAttemptMap={},ciConvMap={};
+  const todayStr=new Date().toISOString().slice(0,10);
+  for(const ci of checkinsRaw){
+    if(ci.checkin_date>todayStr)continue;
+    if(ci.status!=='no_realizado'){if(!ciAttemptMap[ci.client_id]||ci.checkin_date>ciAttemptMap[ci.client_id])ciAttemptMap[ci.client_id]=ci.checkin_date;}
+    if(ci.status==='realizado'){if(!ciConvMap[ci.client_id]||ci.checkin_date>ciConvMap[ci.client_id])ciConvMap[ci.client_id]=ci.checkin_date;}
+  }
+  function maxDt(...ds){const v=ds.filter(Boolean);return v.length?v.reduce((a,b)=>a>b?a:b):null;}
+  function computeContact(mc){const u=uMap[mc.id];return maxDt(mc.last_attempt_at,mc.last_conv_at,u?.last_external_contact||null,ciAttemptMap[mc.id]?ciAttemptMap[mc.id]+'T12:00:00Z':null);}
+  function computeConv(mc){const u=uMap[mc.id];return maxDt(mc.last_conv_at,(u?.client_responded&&u?.last_external_contact)?u.last_external_contact:null,ciConvMap[mc.id]?ciConvMap[mc.id]+'T12:00:00Z':null);}
+  D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.paused  = clients.filter(c=>c.status==='paused').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.pending = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   const clientIdSet = new Set(clients.map(c=>c.id));
   D.upsell  = upsell.filter(u=>u.stage!=='N/A'&&clientIdSet.has(u.client_id)).map(u=>{
     const c=clients.find(x=>x.id===u.client_id)||{};
@@ -692,8 +711,7 @@ async function load() {
   });
   D.msgs = msgs;
 
-  // Check-ins
-  const checkinsRaw = await sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]);
+  // Check-ins (already loaded in Promise.all)
   D.checkins = checkinsRaw;
 
   // Banner
@@ -803,6 +821,9 @@ function deriv(c,k){
   if(k==='_open_days'){const js=c._jobs||[];return js.length>0?Math.max(...js.map(j=>j.active_days||0)):c.active_days||0;}
   if(k==='_open_cands'){const js=c._jobs||[];return js.length>0?js.reduce((s,j)=>s+(j.candidates_presented||0),0):(c.candidates_presented??-1);}
   if(k==='_flag')return!c.hc_id?0:1;
+  if(k==='_lc')return c._lc?dago(c._lc):9999;
+  if(k==='_lcv')return c._lcv?dago(c._lcv):9999;
+  if(k==='_phase')return['M1','M2','M3+','No Phase'].indexOf(phase(c));
   return null;
 }
 
@@ -1058,6 +1079,9 @@ function renderOpen(){
     const typePill=c.client_type?`<span class="pill" style="background:${tc}18;color:${tc};border:1px solid ${tc}40">${typeLabel[c.client_type]||c.client_type}</span>`:'';
     const h=HCC[c.hc_id];
     const multiTag=isMulti?`<span class="pill p-n" style="font-size:10.5px">${openJobs.length} roles</span>`:'';
+    const lcAgo=fmtAgo(c._lc);const lcvAgo=fmtAgo(c._lcv);
+    const lcCol=!c._lc?'var(--mut2)':dago(c._lc)>30?'var(--red)':dago(c._lc)>14?'var(--amb)':'var(--grn)';
+    const lcvCol=!c._lcv?'var(--mut2)':dago(c._lcv)>30?'var(--red)':dago(c._lcv)>14?'var(--amb)':'var(--grn)';
     return`<tr onclick="openDrawer('${c.id}')">
       <td><div class="td-main">
         <div class="td-name">${c.name}</div>
@@ -1069,6 +1093,8 @@ function renderOpen(){
       </div></td>
       <td class="num">${daysTd}</td>
       <td class="num">${candTd}</td>
+      <td><span style="color:${lcCol}">${lcAgo}</span></td>
+      <td><span style="color:${lcvCol}">${lcvAgo}</span></td>
     </tr>`;
   }).join('')||emptyState('No open clients','No active searches match the current filter');
 }
@@ -1099,42 +1125,30 @@ function renderPlaced(){
 
   // Phase chip filter
   const chipPhase=document.querySelector('#placed-chips .chip.on[data-pf="phase"]')?.dataset.v||'';
-
-  // Group by phase
-  const phaseOrder=['M1','M2','M3+','No Phase'];
-  const phaseLabel={'M1':'M1 · First 30 days','M2':'M2 · 31–90 days','M3+':'M3+ · Over 90 days','No Phase':'No placement date'};
   const phaseColor={'M1':'var(--grn)','M2':'var(--p)','M3+':'var(--mut)','No Phase':'var(--mut2)'};
   let rows=sortArr(all,'placed');
   if(chipPhase)rows=rows.filter(c=>phase(c)===chipPhase);
-
-  let html='';
-  const grouped={};
-  for(const c of rows){const p=phase(c);(grouped[p]=grouped[p]||[]).push(c);}
-  const phasesToShow=chipPhase?[chipPhase]:phaseOrder.filter(p=>grouped[p]?.length);
-  for(const ph of phasesToShow){
-    const group=grouped[ph]||[];
-    if(!group.length)continue;
-    html+=`<tr><td colspan="4" class="phase-group-hdr">${phaseLabel[ph]||ph}<span>${group.length} client${group.length!==1?'s':''}</span></td></tr>`;
-    for(const c of group){
-      const pd=dago(c.placement_date);
-      const dc=dago(c.last_conv_at);
-      const dcCol=dc===null?'var(--mut2)':dc>30?'var(--red)':dc>14?'var(--amb)':'var(--grn)';
-      const dcTxt=dc===null?'No record':dc===0?'Today':dc+'d ago';
-      const h=HCC[c.hc_id];
-      const upsellPill=c._u&&!['Closed','Not Interested','Failed Negotiation','N/A'].includes(c._u?.stage)?`<span class="pill p-grn" style="font-size:10.5px">${c._u.stage}</span>`:'';
-      html+=`<tr onclick="openDrawer('${c.id}')">
-        <td><div class="td-main">
-          <div class="td-name">${c.name}</div>
-          <div class="td-sub">${h?`<span style="color:${h.c};font-weight:600">${h.s}</span>`:'<span>Unassigned</span>'}${upsellPill}</div>
-        </div></td>
-        <td class="num"><span style="font-weight:700;color:${phaseColor[ph]||'var(--txt)'}">${pd!=null?pd+'d':'—'}</span></td>
-        <td><span style="color:${dcCol};font-weight:${dc!==null&&dc<=30?700:400}">${dcTxt}</span></td>
-        <td>${pAlert(c)}</td>
-      </tr>`;
-    }
-  }
-  document.getElementById('tb-placed').innerHTML=html||emptyState('No placed clients','Try a different filter or HC');
-  // hide old phase-pills (now replaced by chips)
+  document.getElementById('tb-placed').innerHTML=rows.map(c=>{
+    const ph=phase(c);
+    const pd=dago(c.placement_date);
+    const h=HCC[c.hc_id];
+    const upsellPill=c._u&&!['Closed','Not Interested','Failed Negotiation','N/A'].includes(c._u?.stage)?`<span class="pill p-grn" style="font-size:10.5px">${c._u.stage}</span>`:'';
+    const lcAgo=fmtAgo(c._lc);const lcvAgo=fmtAgo(c._lcv);
+    const lcCol=!c._lc?'var(--mut2)':dago(c._lc)>30?'var(--red)':dago(c._lc)>14?'var(--amb)':'var(--grn)';
+    const lcvCol=!c._lcv?'var(--mut2)':dago(c._lcv)>30?'var(--red)':dago(c._lcv)>14?'var(--amb)':'var(--grn)';
+    const phCol=phaseColor[ph]||'var(--txt)';
+    return`<tr onclick="openDrawer('${c.id}')">
+      <td><div class="td-main">
+        <div class="td-name">${c.name}</div>
+        <div class="td-sub">${h?`<span style="color:${h.c};font-weight:600">${h.s}</span>`:'<span>Unassigned</span>'}${upsellPill}</div>
+      </div></td>
+      <td><span class="pill" style="background:${phCol}1a;color:${phCol};border:1px solid ${phCol}40">${ph}</span></td>
+      <td class="num"><span style="font-weight:700;color:${phCol}">${pd!=null?pd+'d':'—'}</span></td>
+      <td><span style="color:${lcCol}">${lcAgo}</span></td>
+      <td><span style="color:${lcvCol}">${lcvAgo}</span></td>
+      <td>${pAlert(c)}</td>
+    </tr>`;
+  }).join('')||emptyState('No placed clients','Try a different filter or HC');
 }
 
 // ─── UPSELL ───
@@ -1203,10 +1217,10 @@ function renderPaused(){
   const thRazon=document.querySelector('th.th-razon-pausa');
   if(thRazon)thRazon.style.display=showRazon?'':'none';
   document.getElementById('tb-paused').innerHTML=sortArr(p,'paused').map(c=>{
-    const d=dago(c.last_conv_at);
     const h=HCC[c.hc_id];
-    const dcCol=d===null?'var(--mut2)':d>60?'var(--red)':d>30?'var(--amb)':'var(--mut)';
-    const dcTxt=d===null?'No record':d===0?'Today':d+'d ago';
+    const lcAgo=fmtAgo(c._lc);const lcvAgo=fmtAgo(c._lcv);
+    const lcCol=!c._lc?'var(--mut2)':dago(c._lc)>60?'var(--red)':dago(c._lc)>30?'var(--amb)':'var(--mut)';
+    const lcvCol=!c._lcv?'var(--mut2)':dago(c._lcv)>60?'var(--red)':dago(c._lcv)>30?'var(--amb)':'var(--mut)';
     const motivo=c.pause_reason||'';
     const retorno=c.return_date?fmtDate(c.return_date):'';
     const razonCell=showRazon?`<td><div class="td-sub">${motivo?`<span>${motivo}</span>`:'<span style="color:var(--mut2)">—</span>'}${retorno?`<span class="pill p-n" style="font-size:10.5px">↩ ${retorno}</span>`:''}</div></td>`:'';
@@ -1215,20 +1229,25 @@ function renderPaused(){
         <div class="td-name">${c.name}</div>
         <div class="td-sub">${h?`<span style="color:${h.c};font-weight:600">${h.s}</span>`:''}</div>
       </div></td>
-      <td><span style="color:${dcCol};font-weight:500">${dcTxt}</span></td>
+      <td><span style="color:${lcCol};font-weight:500">${lcAgo}</span></td>
+      <td><span style="color:${lcvCol};font-weight:500">${lcvAgo}</span></td>
       ${razonCell}
     </tr>`;
   }).join('')||emptyState('No paused clients','');
   document.getElementById('tb-pending').innerHTML=sortArr(q,'pending').map(c=>{
     const wd=c.pending_since?dago(c.pending_since):null;
     const h=HCC[c.hc_id];
-    const urgent=!c.hc_id||wd>14;
+    const lcAgo=fmtAgo(c._lc);const lcvAgo=fmtAgo(c._lcv);
+    const lcCol=!c._lc?'var(--mut2)':dago(c._lc)>30?'var(--red)':dago(c._lc)>14?'var(--amb)':'var(--grn)';
+    const lcvCol=!c._lcv?'var(--mut2)':dago(c._lcv)>30?'var(--red)':dago(c._lcv)>14?'var(--amb)':'var(--grn)';
     return`<tr onclick="openDrawer('${c.id}')">
       <td><div class="td-main">
         <div class="td-name">${c.name}</div>
         <div class="td-sub">${h?`<span style="color:${h.c};font-weight:600">${h.s}</span>`:'<span style="color:var(--red);font-weight:600">No HC</span>'}</div>
       </div></td>
       <td class="num"><span style="font-weight:700;color:${wd>14?'var(--red)':wd>7?'var(--amb)':'var(--mut)'}">${wd!==null?wd+'d':'—'}</span></td>
+      <td><span style="color:${lcCol}">${lcAgo}</span></td>
+      <td><span style="color:${lcvCol}">${lcvAgo}</span></td>
       <td>${!c.hc_id?pill('p-red','Assign HC',true):wd>14?pill('p-amb','Follow up',true):pill('p-n','On hold',true)}</td>
     </tr>`;
   }).join('')||emptyState('No pending clients','');
