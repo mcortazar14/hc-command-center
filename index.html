@@ -668,11 +668,12 @@ async function sbGetAll(table, qs, pageSize=1000) {
 
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
-  const [clients, upsell, msgs, checkinsRaw] = await Promise.all([
+  const [clients, upsell, msgs, checkinsRaw, lastUpdRow] = await Promise.all([
     sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&status=not.in.(canceled,non_client)&limit=2000'),
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
+    sbGet('clients','?select=updated_at&order=updated_at.desc&limit=1'),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
@@ -727,7 +728,20 @@ async function load() {
   set('b-upsell',   D.upsell.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage)).length);
   set('b-paused',   D.paused.length+D.pending.length);
   set('b-checkins', D.checkins.length);
-  set('stime','Synced '+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' COT');
+  (function(){
+    const lastSync=lastUpdRow[0]?.updated_at||null;
+    const sdot=document.getElementById('sdot');
+    const stEl=document.getElementById('stime');
+    if(!lastSync){stEl.textContent='Sin datos de sync';return;}
+    const bogDate=new Date(lastSync).toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    const hrs=(Date.now()-new Date(lastSync))/36e5;
+    const hrsStr=hrs<1?'(<1 h)':'(hace '+Math.round(hrs)+' h)';
+    const bogNow=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Bogota'}));
+    const isStale=hrs>6&&bogNow.getDay()>=1&&bogNow.getDay()<=5&&bogNow.getHours()>=8&&bogNow.getHours()<19;
+    stEl.textContent='Últ. sync: '+bogDate+' '+hrsStr;
+    sdot.style.background=isStale?'var(--red)':'var(--grn)';
+    if(isStale)stEl.style.color='var(--red)';
+  })();
   renderAll();
 }
 
