@@ -488,8 +488,7 @@ table tbody td{padding:11px 12px;vertical-align:top}
         <th data-tbl="open" data-k="name">Client</th>
         <th data-tbl="open" data-k="_open_days" class="num">Active days</th>
         <th data-tbl="open" data-k="_open_cands" class="num">Candidates</th>
-        <th data-tbl="open" data-k="_lc">Last contact</th>
-        <th data-tbl="open" data-k="_lcv">Last conv.</th>
+        <th data-tbl="open" data-k="_ci">Last check-in</th>
       </tr></thead><tbody id="tb-open"></tbody></table>
     </div>
   </div>
@@ -515,6 +514,12 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <span class="chip" data-pf="phase" data-v="M1">M1 · 0–30d</span>
       <span class="chip" data-pf="phase" data-v="M2">M2 · 31–90d</span>
       <span class="chip" data-pf="phase" data-v="M3+">M3+ · 90d+</span>
+      <div class="chip-sep"></div>
+      <span class="chip on" data-pf="status" data-sv="">All <b id="sc-all"></b></span>
+      <span class="chip" data-pf="status" data-sv="healthy">Healthy <b id="sc-healthy"></b></span>
+      <span class="chip" data-pf="status" data-sv="atrisk">At risk <b id="sc-atrisk"></b></span>
+      <span class="chip" data-pf="status" data-sv="nc30">No conv. 30d+ <b id="sc-nc30"></b></span>
+      <span class="chip" data-pf="status" data-sv="nocontact">No contact on record <b id="sc-nc0"></b></span>
     </div>
     <div class="tbl-wrap">
       <table><thead><tr>
@@ -740,7 +745,7 @@ async function load() {
   function maxDt(...ds){const v=ds.filter(Boolean);return v.length?v.reduce((a,b)=>a>b?a:b):null;}
   function computeContact(mc){const u=uMap[mc.id];return maxDt(mc.last_attempt_at,mc.last_conv_at,u?.last_external_contact||null,ciAttemptMap[mc.id]?ciAttemptMap[mc.id]+'T12:00:00Z':null);}
   function computeConv(mc){const u=uMap[mc.id];return maxDt(mc.last_conv_at,(u?.client_responded&&u?.last_external_contact)?u.last_external_contact:null,ciConvMap[mc.id]?ciConvMap[mc.id]+'T12:00:00Z':null);}
-  D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc),_ci:ciConvMap[c.id]?ciConvMap[c.id]+'T12:00:00Z':null};});
   D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   D.paused  = clients.filter(c=>c.status==='paused').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   D.pending  = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
@@ -882,6 +887,7 @@ function deriv(c,k){
   if(k==='_open_days'){const js=c._jobs||[];return js.length>0?Math.max(...js.map(j=>j.active_days||0)):c.active_days||0;}
   if(k==='_open_cands'){const js=c._jobs||[];return js.length>0?js.reduce((s,j)=>s+(j.candidates_presented||0),0):(c.candidates_presented??-1);}
   if(k==='_flag')return!c.hc_id?0:1;
+  if(k==='_ci')return c._ci?dago(c._ci):9999;
   if(k==='_lc')return c._lc?dago(c._lc):9999;
   if(k==='_lcv')return c._lcv?dago(c._lcv):9999;
   if(k==='_phase')return['M1','M2','M3+','No Phase'].indexOf(phase(c));
@@ -1140,9 +1146,9 @@ function renderOpen(){
     const typePill=c.client_type?`<span class="pill" style="background:${tc}18;color:${tc};border:1px solid ${tc}40">${typeLabel[c.client_type]||c.client_type}</span>`:'';
     const h=HCC[c.hc_id];
     const multiTag=isMulti?`<span class="pill p-n" style="font-size:10.5px">${openJobs.length} roles</span>`:'';
-    const lcAgo=fmtAgo(c._lc);const lcvAgo=fmtAgo(c._lcv);
-    const lcCol=!c._lc?'var(--mut2)':dago(c._lc)>30?'var(--red)':dago(c._lc)>14?'var(--amb)':'var(--grn)';
-    const lcvCol=!c._lcv?'var(--mut2)':dago(c._lcv)>30?'var(--red)':dago(c._lcv)>14?'var(--amb)':'var(--grn)';
+    const ciDays=c._ci?dago(c._ci):null;
+    const ciAgo=c._ci?fmtAgo(c._ci):null;
+    const ciCol=ciDays===null?'var(--red)':ciDays>60?'var(--red)':ciDays>30?'var(--amb)':'var(--grn)';
     return`<tr onclick="openDrawer('${c.id}')">
       <td><div class="td-main">
         <div class="td-name">${c.name}</div>
@@ -1154,8 +1160,7 @@ function renderOpen(){
       </div></td>
       <td class="num">${daysTd}</td>
       <td class="num">${candTd}</td>
-      <td><span style="color:${lcCol}">${lcAgo}</span></td>
-      <td><span style="color:${lcvCol}">${lcvAgo}</span></td>
+      <td>${ciAgo?`<span style="color:${ciCol}">${ciAgo}</span>`:'<span style="color:var(--red);font-weight:600">Nunca</span>'}</td>
     </tr>`;
   }).join('')||emptyState('No open clients','No active searches match the current filter');
 }
@@ -1184,11 +1189,20 @@ function renderPlaced(){
     document.getElementById('nc-cts').innerHTML=Object.entries(byHC).map(([id,n])=>{const h=HCC[id];return`<div class="nc-hc"><b style="color:${h?.c||'var(--txt)'}">${n}</b><span>${h?.s||'?'}</span></div>`;}).join('');
   } else nce.style.display='none';
 
+  function pSt(c){const d=dago(c.last_conv_at);if(d===null)return'nocontact';if(d<15)return'healthy';if(d<=30)return'atrisk';return'nc30';}
+  const stC={};for(const c of all)stC[pSt(c)]=(stC[pSt(c)]||0)+1;
+  document.getElementById('sc-all').textContent=all.length;
+  document.getElementById('sc-healthy').textContent=stC.healthy||0;
+  document.getElementById('sc-atrisk').textContent=stC.atrisk||0;
+  document.getElementById('sc-nc30').textContent=stC.nc30||0;
+  document.getElementById('sc-nc0').textContent=stC.nocontact||0;
+  const chipStatus=document.querySelector('#placed-chips .chip.on[data-pf="status"]')?.dataset.sv||'';
   // Phase chip filter
   const chipPhase=document.querySelector('#placed-chips .chip.on[data-pf="phase"]')?.dataset.v||'';
   const phaseColor={'M1':'var(--grn)','M2':'var(--p)','M3+':'var(--mut)','No Phase':'var(--mut2)'};
   let rows=sortArr(all,'placed');
   if(chipPhase)rows=rows.filter(c=>phase(c)===chipPhase);
+  if(chipStatus)rows=rows.filter(c=>pSt(c)===chipStatus);
   document.getElementById('tb-placed').innerHTML=rows.map(c=>{
     const ph=phase(c);
     const pd=dago(c.placement_date);
