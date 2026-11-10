@@ -696,7 +696,7 @@ async function load() {
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
-    sbGet('clients','?select=updated_at&order=updated_at.desc&limit=1'),
+    sbGet('clients','?select=updated_at&order=updated_at.desc&limit=1').catch(()=>[]),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
