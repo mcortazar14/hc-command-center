@@ -733,12 +733,16 @@ async function load() {
     const sdot=document.getElementById('sdot');
     const stEl=document.getElementById('stime');
     if(!lastSync){stEl.textContent='Sin datos de sync';return;}
-    const bogDate=new Date(lastSync).toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    // Manual UTC-5 (Colombia no tiene DST — siempre UTC-5)
+    const MO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    function fmtBog(dt){const d=new Date(new Date(dt).getTime()-5*3600000);return d.getUTCDate()+' '+MO[d.getUTCMonth()]+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');}
     const hrs=(Date.now()-new Date(lastSync))/36e5;
     const hrsStr=hrs<1?'(<1 h)':'(hace '+Math.round(hrs)+' h)';
-    const bogNow=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Bogota'}));
-    const isStale=hrs>6&&bogNow.getDay()>=1&&bogNow.getDay()<=5&&bogNow.getHours()>=8&&bogNow.getHours()<19;
-    stEl.textContent='Últ. sync: '+bogDate+' '+hrsStr;
+    // Hora actual Bogotá: UTC-5
+    const nowBog=new Date(Date.now()-5*3600000);
+    const day=nowBog.getUTCDay(),h=nowBog.getUTCHours();
+    const isStale=hrs>6&&day>=1&&day<=5&&h>=8&&h<19;
+    stEl.textContent='Últ. sync: '+fmtBog(lastSync)+' '+hrsStr;
     sdot.style.background=isStale?'var(--red)':'var(--grn)';
     if(isStale)stEl.style.color='var(--red)';
   })();
