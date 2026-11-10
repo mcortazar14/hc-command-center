@@ -372,6 +372,10 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><polyline points="16 2 16 6"/><polyline points="8 2 8 6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
       Check-ins<span class="badge" id="b-checkins">—</span>
     </a>
+    <a data-v="canceled">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      Cancelled<span class="badge" id="b-canceled">—</span>
+    </a>
   </nav>
   <div class="navh">Team</div>
   <nav class="nav">
@@ -600,6 +604,25 @@ table tbody td{padding:11px 12px;vertical-align:top}
     </div>
   </div>
 
+  <!-- CANCELLED -->
+  <div class="view" id="v-canceled">
+    <div class="view-header">
+      <div class="view-header-left">
+        <h2>Cancelled clients</h2>
+        <span class="vh-sub">All jobs cancelled in RCRM</span>
+      </div>
+      <div class="view-header-right">
+        <input type="text" placeholder="Search…" data-f="canceled" id="f-canceled" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:6px 10px;font:inherit;font-size:13px;color:var(--txt);outline:none;width:180px;transition:border-color .12s" onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='var(--line)'">
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th data-tbl="canceled" data-k="name">Client</th>
+        <th data-tbl="canceled" data-k="_lc">Last contact</th>
+      </tr></thead><tbody id="tb-canceled"></tbody></table>
+    </div>
+  </div>
+
   <!-- LEADERBOARD -->
   <div class="view" id="v-leaderboard">
     <div class="view-header" style="margin-bottom:18px">
@@ -669,7 +692,7 @@ async function sbGetAll(table, qs, pageSize=1000) {
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
   const [clients, upsell, msgs, checkinsRaw, lastUpdRow] = await Promise.all([
-    sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&status=not.in.(canceled,non_client)&limit=2000'),
+    sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&status=not.eq.non_client&limit=2000'),
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
@@ -703,7 +726,8 @@ async function load() {
   D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc)};});
   D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   D.paused  = clients.filter(c=>c.status==='paused').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
-  D.pending = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.pending  = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.canceled = clients.filter(c=>c.status==='canceled').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   const clientIdSet = new Set(clients.map(c=>c.id));
   D.upsell  = upsell.filter(u=>u.stage!=='N/A'&&clientIdSet.has(u.client_id)).map(u=>{
     const c=clients.find(x=>x.id===u.client_id)||{};
@@ -727,6 +751,7 @@ async function load() {
   set('b-placed',   D.placed.length);
   set('b-upsell',   D.upsell.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage)).length);
   set('b-paused',   D.paused.length+D.pending.length);
+  set('b-canceled', D.canceled.length);
   set('b-checkins', D.checkins.length);
   (function(){
     const lastSync=lastUpdRow[0]?.updated_at||null;
@@ -860,7 +885,7 @@ function periodRange(){
 function perLabel(){return{tw:'This week',lw:'Last week',tm:'This month',lm:'Last month',cu:'Custom range'}[PER]||'';}
 
 // ─── renderAll ───
-function renderAll(){renderToday();renderOpen();renderPlaced();renderUpsell();renderPaused();renderLB();renderCheckins();}
+function renderAll(){renderToday();renderOpen();renderPlaced();renderUpsell();renderPaused();renderCanceled();renderLB();renderCheckins();}
 
 // ─── metric color helper ───
 function metricColor(metric,val){
@@ -1271,6 +1296,25 @@ function renderPaused(){
   }).join('')||emptyState('No pending clients','');
 }
 
+// ─── CANCELLED ───
+function renderCanceled(){
+  const r=D.canceled.filter(c=>HCF==='All'||c.hc_id===HCF);
+  const q=(SQ.canceled||'').toLowerCase();
+  const rows=r.filter(c=>!q||(c.name||'').toLowerCase().includes(q));
+  document.getElementById('tb-canceled').innerHTML=rows.map(c=>{
+    const h=HCC[c.hc_id];
+    const lcAgo=fmtAgo(c._lc);
+    const lcCol=!c._lc?'var(--mut2)':'var(--mut)';
+    return`<tr onclick="openDrawer('${c.id}')">
+      <td><div class="td-main">
+        <div class="td-name">${c.name}</div>
+        <div class="td-sub">${h?`<span style="color:${h.c};font-weight:600">${h.s}</span>`:''}</div>
+      </div></td>
+      <td><span style="color:${lcCol}">${lcAgo}</span></td>
+    </tr>`;
+  }).join('')||emptyState('No cancelled clients','');
+}
+
 // ─── LEADERBOARD ───
 function renderLB(){
   const now30=new Date(Date.now()-30*864e5),now7=new Date(Date.now()-7*864e5);
@@ -1343,7 +1387,7 @@ function dayBarHtml(days){
   </div>`;
 }
 async function openDrawer(id){
-  const c=[...D.open,...D.placed,...D.paused,...D.pending].find(x=>x.id===id);
+  const c=[...D.open,...D.placed,...D.paused,...D.pending,...D.canceled].find(x=>x.id===id);
   if(!c)return;
   const u=D.upsell.find(x=>x.client_id===id);
   const[msgs,hist]=await Promise.all([
@@ -1441,7 +1485,7 @@ async function openDrawer(id){
 // ─── CHECK-INS ───
 function renderCheckins(){
   const q=(SQ['checkins']||'').toLowerCase();
-  const allClients=[...D.open,...D.placed,...D.paused,...D.pending];
+  const allClients=[...D.open,...D.placed,...D.paused,...D.pending,...D.canceled];
   const rows=D.checkins.filter(c=>{
     if(HCF!=='All'&&c.hc_id!==HCF)return false;
     const cl=allClients.find(x=>x.id===c.client_id);
@@ -1474,7 +1518,7 @@ function renderCheckins(){
 function openK(){document.getElementById('cmdk').classList.add('on');document.getElementById('scrim').classList.add('on');$('#kq').value='';renderK();setTimeout(()=>$('#kq').focus(),40);}
 function renderK(){
   const q=$('#kq').value.toLowerCase();
-  const all=[...D.open,...D.placed,...D.paused,...D.pending];
+  const all=[...D.open,...D.placed,...D.paused,...D.pending,...D.canceled];
   const cl=all.filter(c=>!q||c.name.toLowerCase().includes(q)).slice(0,6).map(c=>({g:'Clients',l:c.name,hint:c.status,f:()=>{closeAll();openDrawer(c.id)}}));
   const vw=[['today','Today'],['open','Open'],['placed','Placed'],['upsell','Upsell'],['paused','Paused'],['checkins','Check-ins'],['leaderboard','Leaderboard']].filter(([,l])=>!q||l.toLowerCase().includes(q)).map(([v,l])=>({g:'Go to',l,hint:'G→',f:()=>{closeAll();goView(v)}}));
   const ac=[['Toggle dark mode','T',toggleTheme],['Filter: Mateo','1',()=>setHC('Q0aVHyBbFhqJxWuEKLMt')],['Filter: Matt','2',()=>setHC('uqAeFfwbHnH0lCwSvprz')],['Filter: María Fernanda','3',()=>setHC('YNlj27LBFv74CKLrh1zy')],['View all HCs','0',()=>setHC('All')]].filter(([l])=>!q||l.toLowerCase().includes(q)).map(([l,h,fn])=>({g:'Actions',l,hint:h,f:()=>{closeAll();fn();}}));
@@ -1492,7 +1536,7 @@ $('#kq').addEventListener('input',renderK);
 document.getElementById('kres').addEventListener('click',e=>{const item=e.target.closest('.ki');if(item)kitems[+item.dataset.i].f();});
 
 // ─── NAV ───
-const VT={today:'Today',open:'Open',placed:'Placed',upsell:'Upsell pipeline',paused:'Paused / Pending',checkins:'Check-ins',leaderboard:'Leaderboard'};
+const VT={today:'Today',open:'Open',placed:'Placed',upsell:'Upsell pipeline',paused:'Paused / Pending',canceled:'Cancelled',checkins:'Check-ins',leaderboard:'Leaderboard'};
 function goView(v){
   VIEW=v;
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
@@ -1517,9 +1561,9 @@ document.getElementById('placed-chips').addEventListener('click',e=>{const c=e.t
 // phase-pills replaced by placed-chips
 document.addEventListener('click',e=>{
   const th=e.target.closest('th[data-tbl]');
-  if(th){const t=th.dataset.tbl,k=th.dataset.k;SORT[t]=[k,SORT[t]&&SORT[t][0]===k?-SORT[t][1]:-1];document.querySelectorAll(`th[data-tbl="${t}"]`).forEach(x=>{x.classList.remove('th-asc','th-desc');});th.classList.add(SORT[t][1]===-1?'th-desc':'th-asc');if(t==='open')renderOpen();else if(t==='placed')renderPlaced();else if(t==='upsell')renderUpsell();else renderPaused();}
+  if(th){const t=th.dataset.tbl,k=th.dataset.k;SORT[t]=[k,SORT[t]&&SORT[t][0]===k?-SORT[t][1]:-1];document.querySelectorAll(`th[data-tbl="${t}"]`).forEach(x=>{x.classList.remove('th-asc','th-desc');});th.classList.add(SORT[t][1]===-1?'th-desc':'th-asc');if(t==='open')renderOpen();else if(t==='placed')renderPlaced();else if(t==='upsell')renderUpsell();else if(t==='canceled')renderCanceled();else renderPaused();}
 });
-document.addEventListener('input',e=>{const v=e.target.dataset.f;if(!v)return;SQ[v]=e.target.value;if(v==='open')renderOpen();else if(v==='placed')renderPlaced();else if(v==='upsell')renderUpsell();else if(v==='checkins')renderCheckins();else renderPaused();});
+document.addEventListener('input',e=>{const v=e.target.dataset.f;if(!v)return;SQ[v]=e.target.value;if(v==='open')renderOpen();else if(v==='placed')renderPlaced();else if(v==='upsell')renderUpsell();else if(v==='checkins')renderCheckins();else if(v==='canceled')renderCanceled();else renderPaused();});
 let gp=0;
 document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openK();return;}
