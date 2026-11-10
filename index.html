@@ -368,6 +368,10 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
       Paused<span class="badge" id="b-paused">—</span>
     </a>
+    <a data-v="pending">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Pending<span class="badge" id="b-pending">—</span>
+    </a>
     <a data-v="checkins">
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><polyline points="16 2 16 6"/><polyline points="8 2 8 6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
       Check-ins<span class="badge" id="b-checkins">—</span>
@@ -553,12 +557,12 @@ table tbody td{padding:11px 12px;vertical-align:top}
     <div id="ukanban" class="kanban"></div>
   </div>
 
-  <!-- PAUSED / PENDING -->
+  <!-- PAUSED -->
   <div class="view" id="v-paused">
     <div class="view-header">
       <div class="view-header-left">
-        <h2>Paused / Pending</h2>
-        <span class="vh-sub" id="paused-sub">Searches on hold or awaiting client response</span>
+        <h2>Paused</h2>
+        <span class="vh-sub" id="paused-sub">Searches on hold</span>
       </div>
     </div>
     <div class="kpi-row" id="paused-kpis"></div>
@@ -566,7 +570,7 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <input class="chips-search" type="text" placeholder="Search client…" data-f="paused" id="f-paused">
     </div>
     <div class="phase-group-hdr" style="border-radius:var(--rs) var(--rs) 0 0;margin-top:4px">Paused <span id="pcnt"></span></div>
-    <div class="tbl-wrap" style="margin-bottom:22px;border-top:0">
+    <div class="tbl-wrap" style="border-top:0">
       <table><thead><tr>
         <th data-tbl="paused" data-k="name">Client</th>
         <th data-tbl="paused" data-k="_lc">Last contact</th>
@@ -574,8 +578,21 @@ table tbody td{padding:11px 12px;vertical-align:top}
         <th class="th-razon-pausa">Pause reason</th>
       </tr></thead><tbody id="tb-paused"></tbody></table>
     </div>
-    <div class="phase-group-hdr" style="border-radius:var(--rs) var(--rs) 0 0;margin-top:8px">Pending — awaiting response <span id="qcnt"></span></div>
-    <div class="tbl-wrap" style="border-top:0">
+  </div>
+
+  <!-- PENDING -->
+  <div class="view" id="v-pending">
+    <div class="view-header">
+      <div class="view-header-left">
+        <h2>Pending</h2>
+        <span class="vh-sub" id="pending-sub">Clients awaiting launch</span>
+      </div>
+    </div>
+    <div class="kpi-row" id="pending-kpis"></div>
+    <div class="chips-bar">
+      <input class="chips-search" type="text" placeholder="Search client…" data-f="pending" id="f-pending">
+    </div>
+    <div class="tbl-wrap" style="margin-top:4px">
       <table><thead><tr>
         <th data-tbl="pending" data-k="name">Client</th>
         <th data-tbl="pending" data-k="_wdays" class="num">Days waiting</th>
@@ -696,7 +713,7 @@ async function load() {
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
-    sbGet('clients','?select=updated_at&order=updated_at.desc&limit=1').catch(()=>[]),
+    sbGet('sync_status','?select=last_success_at&id=eq.1').catch(()=>[]),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
@@ -750,11 +767,12 @@ async function load() {
   set('b-open',     D.open.length);
   set('b-placed',   D.placed.length);
   set('b-upsell',   D.upsell.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage)).length);
-  set('b-paused',   D.paused.length+D.pending.length);
+  set('b-paused',   D.paused.length);
+  set('b-pending',  D.pending.length);
   set('b-canceled', D.canceled.length);
   set('b-checkins', D.checkins.length);
   (function(){
-    const lastSync=lastUpdRow[0]?.updated_at||null;
+    const lastSync=lastUpdRow[0]?.last_success_at||null;
     const sdot=document.getElementById('sdot');
     const stEl=document.getElementById('stime');
     if(!lastSync){stEl.textContent='Sin datos de sync';return;}
@@ -885,7 +903,7 @@ function periodRange(){
 function perLabel(){return{tw:'This week',lw:'Last week',tm:'This month',lm:'Last month',cu:'Custom range'}[PER]||'';}
 
 // ─── renderAll ───
-function renderAll(){renderToday();renderOpen();renderPlaced();renderUpsell();renderPaused();renderCanceled();renderLB();renderCheckins();}
+function renderAll(){renderToday();renderOpen();renderPlaced();renderUpsell();renderPaused();renderPending();renderCanceled();renderLB();renderCheckins();}
 
 // ─── metric color helper ───
 function metricColor(metric,val){
@@ -1239,16 +1257,14 @@ function renderUpsell(){
   }).join('');
 }
 
-// ─── PAUSED / PENDING ───
+// ─── PAUSED ───
 function renderPaused(){
-  const p=filt(D.paused,'paused'),q=filt(D.pending,'paused');
-  set('pcnt',p.length+' clients'); set('qcnt',q.length+' clients');
+  const p=filt(D.paused,'paused');
+  set('pcnt',p.length+' clients');
   const sinRetorno=p.filter(c=>!c.return_date).length;
   document.getElementById('paused-kpis').innerHTML=[
     {l:'Paused',v:p.length,nc:false},
-    {l:'Pending',v:q.length,nc:false},
     {l:'No return date',v:sinRetorno,amb:sinRetorno>0},
-    {l:'No HC assigned',v:q.filter(c=>!c.hc_id).length,red:q.filter(c=>!c.hc_id).length>0},
   ].map(k=>`<div class="card kpi">
     <div class="k">${k.l}</div>
     <div class="v" style="${k.red?'color:var(--red)':k.amb?'color:var(--amb)':''}">${k.v}</div>
@@ -1256,7 +1272,6 @@ function renderPaused(){
   const hasMotivo=p.some(c=>c.pause_reason);
   const hasRetorno=p.some(c=>c.return_date);
   const showRazon=hasMotivo||hasRetorno;
-  // toggle header column visibility
   const thRazon=document.querySelector('th.th-razon-pausa');
   if(thRazon)thRazon.style.display=showRazon?'':'none';
   document.getElementById('tb-paused').innerHTML=sortArr(p,'paused').map(c=>{
@@ -1277,6 +1292,18 @@ function renderPaused(){
       ${razonCell}
     </tr>`;
   }).join('')||emptyState('No paused clients','');
+}
+
+// ─── PENDING ───
+function renderPending(){
+  const q=filt(D.pending,'pending');
+  document.getElementById('pending-kpis').innerHTML=[
+    {l:'Pending',v:q.length,nc:false},
+    {l:'No HC assigned',v:q.filter(c=>!c.hc_id).length,red:q.filter(c=>!c.hc_id).length>0},
+  ].map(k=>`<div class="card kpi">
+    <div class="k">${k.l}</div>
+    <div class="v" style="${k.red?'color:var(--red)':k.amb?'color:var(--amb)':''}">${k.v}</div>
+  </div>`).join('');
   document.getElementById('tb-pending').innerHTML=sortArr(q,'pending').map(c=>{
     const wd=c.pending_since?dago(c.pending_since):null;
     const h=HCC[c.hc_id];
@@ -1536,7 +1563,7 @@ $('#kq').addEventListener('input',renderK);
 document.getElementById('kres').addEventListener('click',e=>{const item=e.target.closest('.ki');if(item)kitems[+item.dataset.i].f();});
 
 // ─── NAV ───
-const VT={today:'Today',open:'Open',placed:'Placed',upsell:'Upsell pipeline',paused:'Paused / Pending',canceled:'Cancelled',checkins:'Check-ins',leaderboard:'Leaderboard'};
+const VT={today:'Today',open:'Open',placed:'Placed',upsell:'Upsell pipeline',paused:'Paused',pending:'Pending',canceled:'Cancelled',checkins:'Check-ins',leaderboard:'Leaderboard'};
 function goView(v){
   VIEW=v;
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===v));
@@ -1561,9 +1588,9 @@ document.getElementById('placed-chips').addEventListener('click',e=>{const c=e.t
 // phase-pills replaced by placed-chips
 document.addEventListener('click',e=>{
   const th=e.target.closest('th[data-tbl]');
-  if(th){const t=th.dataset.tbl,k=th.dataset.k;SORT[t]=[k,SORT[t]&&SORT[t][0]===k?-SORT[t][1]:-1];document.querySelectorAll(`th[data-tbl="${t}"]`).forEach(x=>{x.classList.remove('th-asc','th-desc');});th.classList.add(SORT[t][1]===-1?'th-desc':'th-asc');if(t==='open')renderOpen();else if(t==='placed')renderPlaced();else if(t==='upsell')renderUpsell();else if(t==='canceled')renderCanceled();else renderPaused();}
+  if(th){const t=th.dataset.tbl,k=th.dataset.k;SORT[t]=[k,SORT[t]&&SORT[t][0]===k?-SORT[t][1]:-1];document.querySelectorAll(`th[data-tbl="${t}"]`).forEach(x=>{x.classList.remove('th-asc','th-desc');});th.classList.add(SORT[t][1]===-1?'th-desc':'th-asc');if(t==='open')renderOpen();else if(t==='placed')renderPlaced();else if(t==='upsell')renderUpsell();else if(t==='canceled')renderCanceled();else if(t==='pending')renderPending();else renderPaused();}
 });
-document.addEventListener('input',e=>{const v=e.target.dataset.f;if(!v)return;SQ[v]=e.target.value;if(v==='open')renderOpen();else if(v==='placed')renderPlaced();else if(v==='upsell')renderUpsell();else if(v==='checkins')renderCheckins();else if(v==='canceled')renderCanceled();else renderPaused();});
+document.addEventListener('input',e=>{const v=e.target.dataset.f;if(!v)return;SQ[v]=e.target.value;if(v==='open')renderOpen();else if(v==='placed')renderPlaced();else if(v==='upsell')renderUpsell();else if(v==='checkins')renderCheckins();else if(v==='canceled')renderCanceled();else if(v==='pending')renderPending();else renderPaused();});
 let gp=0;
 document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openK();return;}
