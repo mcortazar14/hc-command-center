@@ -448,7 +448,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
         Priority actions
         <span class="sub" id="inbox-sub">Sorted by urgency</span>
       </div>
-      <div id="inbox-ghl-miss" style="display:none;padding:8px 16px 2px;font-size:12px;color:var(--mut)"></div>
       <div id="inbox"></div>
     </div>
     <!-- Ritmo del equipo — ancho completo -->
@@ -684,7 +683,7 @@ const UST = ['Seeded','Detected','Pitched','Active','Closed','Failed Negotiation
 const USC = { Seeded:'p-n', Detected:'p-n', Pitched:'p-amb', Active:'p-p', Closed:'p-grn', 'Failed Negotiation':'p-red', 'Not Interested':'p-n' };
 const TODAY = new Date();
 
-let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[], checkins:[] };
+let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[], checkins:[], weeklyTargets:null };
 let SORT = { open:['name',1], placed:['_placed_sort',-1], upsell:['_urgency',-1], paused:['name',1], pending:['_wdays',-1] };
 let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'kanban';
 let ki = 0, kitems = [];
@@ -718,7 +717,7 @@ async function load() {
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
-    sbGet('sync_status','?select=last_success_at&id=eq.1').catch(()=>[]),
+    sbGet('sync_status','?select=last_success_at,weekly_targets&id=eq.1').catch(()=>[]),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
@@ -776,6 +775,7 @@ async function load() {
   set('b-pending',  D.pending.length);
   set('b-canceled', D.canceled.length);
   set('b-checkins', D.checkins.length);
+  D.weeklyTargets = lastUpdRow[0]?.weekly_targets || null;
   (function(){
     const lastSync=lastUpdRow[0]?.last_success_at||null;
     const sdot=document.getElementById('sdot');
@@ -916,6 +916,7 @@ function metricColor(metric,val){
   if(metric==='conv7'){if(val>=5)return'var(--grn)';if(val>=3)return'var(--amb)';return'var(--red)';}
   if(metric==='open'){if(val>=10&&val<=20)return'var(--grn)';if(val>=8&&val<=25)return'var(--amb)';return'var(--red)';}
   if(metric==='c30'){if(val>=20)return'var(--grn)';if(val>=10)return'var(--amb)';return'var(--red)';}
+  if(metric==='pitch'){if(val>=80)return'var(--grn)';if(val>=40)return'var(--amb)';return'var(--red)';}
   return'var(--txt)';
 }
 
@@ -956,15 +957,18 @@ function renderKpiStrip(){
 }
 
 function renderHCCards(){
+  // Bogotá (UTC-5) current Mon–Sun bounds
+  const _bog=new Date(Date.now()-5*3600000),_dow=_bog.getUTCDay(),_dtm=_dow===0?6:_dow-1;
+  const _mon=new Date(_bog.getTime()-_dtm*86400000);_mon.setUTCHours(0,0,0,0);
+  const wkS=new Date(_mon.getTime()+5*3600000),wkE=new Date(wkS.getTime()+7*86400000);
+  const PITCH_BEYOND=new Set(['Pitched','Active','Closed','Not Interested','Failed Negotiation']);
+  const HC_TGT={'Q0aVHyBbFhqJxWuEKLMt':'mateo','uqAeFfwbHnH0lCwSvprz':'matt','YNlj27LBFv74CKLrh1zy':'mf'};
   document.getElementById('hc-cards').innerHTML=Object.entries(HCC).map(([id,h])=>{
-    const placed=D.placed.filter(c=>c.hc_id===id);
     const openN=(HCF==='All'||HCF===id)?D.open.filter(c=>c.hc_id===id).length:null;
     const conv7=D.msgs.filter(m=>m.hc_id===id&&isConv(m)&&dago(m.date_added)<=7).length;
-    // Contacto 30d: numerador = colocados contactados en los últimos 30d (solo GHL por ahora)
-    // TODO: cuando se conecten check-ins, Upsell Tracker y Fathom, sumar esas fuentes al set "contactedIds"
-    const contactedIds=new Set(placed.filter(c=>c.last_conv_at&&dago(c.last_conv_at)<=30).map(c=>c.id));
-    const placedGHL=placed.filter(c=>c.last_conv_at); // colocados con historial en GHL
-    const c30=placed.length>0?Math.round(contactedIds.size/placed.length*100):0;
+    const pWk=D.upsell.filter(u=>u.hc_id===id&&PITCH_BEYOND.has(u.stage)&&!isBulkDate(u.stage_since)&&new Date(u.stage_since)>=wkS&&new Date(u.stage_since)<wkE).length;
+    const pGoal=D.weeklyTargets?.[HC_TGT[id]]??null;
+    const pPct=pGoal?Math.round(pWk/pGoal*100):null;
     const init=h.s.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const dim=(HCF!=='All'&&HCF!==id)?';opacity:.45;filter:grayscale(.6)':'';
     return`<div class="hc-card" style="cursor:default${dim}">
@@ -983,13 +987,13 @@ function renderHCCards(){
           <div class="hc-lbl">Conv/wk</div>
         </div>
         <div class="hc-metric">
-          <div class="hc-val" style="color:${metricColor('c30',c30)}">${c30}%</div>
-          <div class="hc-lbl">Contact 30d</div>
+          <div class="hc-val" style="color:${pGoal!==null?metricColor('pitch',pPct??0):'var(--mut2)'}">${pGoal!==null?`${pWk} / ${pGoal}`:'—'}</div>
+          <div class="hc-lbl">Pitches/wk</div>
         </div>
       </div>
       <div class="hc-bar-row">
-        <div class="hc-bar"><div class="hc-bar-fill" style="width:${Math.min(c30,100)}%;background:${h.c}"></div></div>
-        <div class="hc-bar-labels"><span>${contactedIds.size} of ${placed.length} clients with contact logged</span><span style="color:${metricColor('c30',c30)}">${c30}%</span></div>
+        <div class="hc-bar"><div class="hc-bar-fill" style="width:${pGoal!==null?Math.min(pPct,100):0}%;background:${h.c}"></div></div>
+        <div class="hc-bar-labels"><span>${pGoal!==null?`${pWk} pitch${pWk!==1?'es':''} toward ${pGoal} this week`:'Goal not loaded'}</span><span style="color:${pGoal!==null?metricColor('pitch',pPct??0):'var(--mut)'}">${pPct!==null?pPct+'%':'—'}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -999,18 +1003,6 @@ function renderInbox(){
   const pfilt=HCF==='All'?D.placed:D.placed.filter(c=>c.hc_id===HCF);
   const ufilt=HCF==='All'?D.upsell:D.upsell.filter(u=>u.hc_id===HCF);
   const ofilt=HCF==='All'?D.open:D.open.filter(c=>c.hc_id===HCF);
-
-  // Clientes colocados SIN historial en GHL (last_conv_at nunca registrado)
-  const noGHL=pfilt.filter(c=>!c.last_conv_at);
-  const noGHLel=document.getElementById('inbox-ghl-miss');
-  if(noGHLel){
-    if(noGHL.length>0){
-      noGHLel.style.display='';
-      noGHLel.textContent=`No contact logged: ${noGHL.length} placed client${noGHL.length!==1?'s':''} with no conversation on record`;
-    } else {
-      noGHLel.style.display='none';
-    }
-  }
 
   // Pool priorizado (máx 10):
   // 1. Upsells Pitched/Active sin respuesta externa >7 días (negocio urgente)
