@@ -479,12 +479,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
 
   <!-- OPEN -->
   <div class="view" id="v-open">
-    <div class="view-header">
-      <div class="view-header-left">
-        <h2>Open clients</h2>
-        <span class="vh-sub" id="open-sub">Active searches in progress</span>
-      </div>
-    </div>
     <div class="kpi-row" id="open-kpis"></div>
     <div class="chips-bar" id="open-chips">
       <input class="chips-search" type="text" placeholder="Search client…" data-f="open" id="f-open">
@@ -506,12 +500,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
 
   <!-- PLACED -->
   <div class="view" id="v-placed">
-    <div class="view-header">
-      <div class="view-header-left">
-        <h2>Placed clients</h2>
-        <span class="vh-sub" id="placed-sub">Post-placement follow-up</span>
-      </div>
-    </div>
     <div class="kpi-row" id="placed-kpis"></div>
     <div class="no-ctr" id="no-ctr" style="display:none">
       <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5-2 4-2 4 2 4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
@@ -567,12 +555,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
 
   <!-- PAUSED -->
   <div class="view" id="v-paused">
-    <div class="view-header">
-      <div class="view-header-left">
-        <h2>Paused</h2>
-        <span class="vh-sub" id="paused-sub">Searches on hold</span>
-      </div>
-    </div>
     <div class="kpi-row" id="paused-kpis"></div>
     <div class="chips-bar">
       <input class="chips-search" type="text" placeholder="Search client…" data-f="paused" id="f-paused">
@@ -590,12 +572,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
 
   <!-- PENDING -->
   <div class="view" id="v-pending">
-    <div class="view-header">
-      <div class="view-header-left">
-        <h2>Pending</h2>
-        <span class="vh-sub" id="pending-sub">Clients awaiting launch</span>
-      </div>
-    </div>
     <div class="kpi-row" id="pending-kpis"></div>
     <div class="chips-bar">
       <input class="chips-search" type="text" placeholder="Search client…" data-f="pending" id="f-pending">
@@ -614,10 +590,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
   <!-- CHECK-INS -->
   <div class="view" id="v-checkins">
     <div class="view-header">
-      <div class="view-header-left">
-        <h2>Check-ins</h2>
-        <span class="vh-sub" id="checkins-sub">Recorded follow-up calls</span>
-      </div>
       <div class="view-header-right">
         <input type="text" placeholder="Search…" data-f="checkins" id="f-checkins" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:6px 10px;font:inherit;font-size:13px;color:var(--txt);outline:none;width:180px;transition:border-color .12s" onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='var(--line)'">
       </div>
@@ -632,10 +604,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
   <!-- CANCELLED -->
   <div class="view" id="v-canceled">
     <div class="view-header">
-      <div class="view-header-left">
-        <h2>Cancelled clients</h2>
-        <span class="vh-sub">All jobs cancelled in RCRM</span>
-      </div>
       <div class="view-header-right">
         <input type="text" placeholder="Search…" data-f="canceled" id="f-canceled" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:6px 10px;font:inherit;font-size:13px;color:var(--txt);outline:none;width:180px;transition:border-color .12s" onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='var(--line)'">
       </div>
@@ -650,12 +618,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
 
   <!-- LEADERBOARD -->
   <div class="view" id="v-leaderboard">
-    <div class="view-header" style="margin-bottom:18px">
-      <div class="view-header-left">
-        <h2>Leaderboard</h2>
-        <span class="vh-sub">Rendimiento por HC — período seleccionado</span>
-      </div>
-    </div>
     <div class="lb-grid" id="lb"></div>
   </div>
 </div><!-- /main -->
@@ -1115,7 +1077,6 @@ function renderToday(){
 function renderOpen(){
   const data=filt(D.open,'open');
   const sinTipo=data.filter(c=>!c.client_type).length;
-  set('open-sub',`${data.length} active client${data.length!==1?'s':''} · open searches in progress`);
   document.getElementById('open-kpis').innerHTML=[
     {l:'Total open',v:data.length,bold:true},
     {l:'New',v:data.filter(c=>c.client_type==='New').length},
@@ -1175,7 +1136,6 @@ function renderOpen(){
 function renderPlaced(){
   const all=filt(D.placed,'placed');
   const nc=all.filter(c=>!c.last_conv_at);
-  set('placed-sub',`${all.length} placed client${all.length!==1?'s':''} · post-placement follow-up`);
   const sinContacto=all.filter(c=>!c.last_conv_at||dago(c.last_conv_at)>30).length;
   document.getElementById('placed-kpis').innerHTML=[
     {l:'Total placed',v:all.length,bold:true},
@@ -1568,7 +1528,6 @@ function renderCheckins(){
     return !q||(cl?.name||'').toLowerCase().includes(q);
   });
   set('b-checkins',rows.length);
-  set('checkins-sub',`${rows.length} recorded check-in${rows.length!==1?'s':''}`);
   document.getElementById('tb-checkins').innerHTML=rows.length===0
     ?emptyState('No check-ins logged','Connect Google Calendar to see team check-ins')
     :rows.map(c=>{
