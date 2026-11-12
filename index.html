@@ -804,7 +804,7 @@ async function load() {
     const stEl=document.getElementById('stime');
     if(!lastSync){stEl.textContent='No sync data';return;}
     // Manual UTC-5 (Colombia no tiene DST — siempre UTC-5)
-    const MO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     function fmtBog(dt){const d=new Date(new Date(dt).getTime()-5*3600000);return d.getUTCDate()+' '+MO[d.getUTCMonth()]+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');}
     const hrs=(Date.now()-new Date(lastSync))/36e5;
     const hrsStr=hrs<1?'(<1 h)':'(hace '+Math.round(hrs)+' h)';
