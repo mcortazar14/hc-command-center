@@ -1251,15 +1251,18 @@ function renderUpsell(){
   const nResult=data.filter(u=>RESULT.includes(u.stage)).length;
   const closeRate=nResult>0?Math.round(nClosed/nResult*100):null;
   const nInProg=data.filter(u=>INPROG.includes(u.stage)).length;
+  const IPCLR=['rgba(109,40,217,.3)','rgba(109,40,217,.5)','rgba(109,40,217,.75)','var(--p)'];
   const inProgCards=INPROG.map((s,i)=>{
     const n=data.filter(u=>u.stage===s).length;
-    const alert14=['Pitched','Active'].includes(s)?data.filter(u=>u.stage===s&&u.last_external_contact&&dago(u.last_external_contact)>14).length:0;
+    const alert14=data.filter(u=>u.stage===s&&u.stage_since&&!isBulkDate(u.stage_since)&&dago(u.stage_since)>14).length;
     const on=USF===s;
-    return`${i>0?'<div class="u-stg-arrow">›</div>':''}<div class="u-stg-card${on?' on':''}" onclick="setUStageFilter('${s}')">
-      <div class="u-stg-n" style="color:${on?'var(--p)':'inherit'}">${n}</div>
+    const numColor=on?'var(--p)':IPCLR[i];
+    const topBorder=on?'':`border-top:2px solid ${IPCLR[i]}`;
+    return`${i>0?'<div class="u-stg-arrow">›</div>':''}<div class="u-stg-card${on?' on':''}" style="${topBorder}" onclick="setUStageFilter('${s}')">
+      <div class="u-stg-n" style="color:${numColor}">${n}</div>
       <div class="u-stg-nm">${s}</div>
       <div class="u-stg-desc">${UST_DESC[s]||''}</div>
-      ${alert14>0?`<div class="u-stg-alert">⚠ ${alert14} >14d</div>`:''}
+      ${alert14>0?`<div class="u-stg-alert">⚠ ${alert14} sin moverse +14d</div>`:''}
     </div>`;
   }).join('');
   const resultCards=RESULT.map((s,i)=>{
