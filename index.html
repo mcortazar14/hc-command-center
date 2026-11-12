@@ -203,6 +203,18 @@ tr.row-warn td:first-child{border-left:3px solid var(--amb)}
 .funnel-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:10px 14px;flex:1;min-width:100px;text-align:center;box-shadow:var(--sh)}
 .funnel-card .fn{font-size:11px;color:var(--mut);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 .funnel-card .fv{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.u-panel{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.u-panel-inprog{border-top:2.5px solid var(--p)}
+.u-panel-hdr{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--mut);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.u-panel-n{background:var(--pl);color:var(--p);border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700}
+.u-stg-card{background:var(--bg);border:1.5px solid var(--line);border-radius:var(--rs);padding:10px 12px;cursor:pointer;transition:border-color .15s,box-shadow .15s;min-width:76px;text-align:center;flex-shrink:0}
+.u-stg-card:hover{border-color:var(--p);box-shadow:0 0 0 2px var(--pl)}
+.u-stg-card.on{border-color:var(--p)!important;box-shadow:0 0 0 2px var(--pl)}
+.u-stg-n{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.u-stg-nm{font-size:10.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;margin-top:2px}
+.u-stg-desc{font-size:10px;color:var(--mut2);margin-top:1px}
+.u-stg-alert{font-size:10px;color:var(--amb);margin-top:4px;font-weight:600}
+.u-stg-arrow{font-size:16px;color:var(--mut2);display:flex;align-items:center;padding:0 1px;flex-shrink:0;align-self:center}
 /* ── Phase pills / placed ── */
 .phase-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
 .phase-pills button{border-radius:20px;font-size:12.5px}.phase-pills button.on{background:var(--p);color:#fff;border-color:var(--p)}
@@ -546,8 +558,7 @@ table tbody td{padding:11px 12px;vertical-align:top}
         </div>
       </div>
     </div>
-    <div class="kpi-row" id="upsell-kpis"></div>
-    <div class="funnel-row" id="ufunnel"></div>
+    <div id="u-funnel-wrap"></div>
     <div id="utbl-wrap" style="display:none"><div class="tbl-wrap">
       <table><thead><tr>
         <th data-tbl="upsell" data-k="name">Client</th>
@@ -683,9 +694,9 @@ const UST = ['Seeded','Detected','Pitched','Active','Closed','Failed Negotiation
 const USC = { Seeded:'p-n', Detected:'p-n', Pitched:'p-amb', Active:'p-p', Closed:'p-grn', 'Failed Negotiation':'p-red', 'Not Interested':'p-n' };
 const TODAY = new Date();
 
-let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[], checkins:[], weeklyTargets:null };
+let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[], checkins:[], weeklyTargets:null, firstPitches:[] };
 let SORT = { open:['name',1], placed:['_placed_sort',-1], upsell:['_urgency',-1], paused:['name',1], pending:['_wdays',-1] };
-let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'kanban';
+let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'kanban', USF = '';
 let ki = 0, kitems = [];
 function _tdKey(){return 'today_done_'+TODAY.toLocaleDateString('en-CA');}
 function _tdGet(){try{return new Set(JSON.parse(localStorage.getItem(_tdKey())||'[]'));}catch{return new Set();}}
@@ -712,12 +723,13 @@ async function sbGetAll(table, qs, pageSize=1000) {
 
 async function load() {
   const ago56 = new Date(Date.now()-56*864e5).toISOString();
-  const [clients, upsell, msgs, checkinsRaw, lastUpdRow] = await Promise.all([
+  const [clients, upsell, msgs, checkinsRaw, lastUpdRow, pitchHistoryRaw] = await Promise.all([
     sbGet('clients','?select=id,name,hc_id,status,rcrm_status,active_days,candidates_presented,client_type,placement_date,pause_reason,return_date,last_conv_at,last_conv_channel,last_attempt_at,created_at,pending_since&status=not.eq.non_client&limit=2000'),
     sbGet('upsell_stages','?select=client_id,stage,stage_since,last_external_contact,external_channel,client_responded,notes&limit=2000'),
     sbGetAll('messages','?select=client_id,hc_id,date_added,is_conversation,message_type,direction,duration_seconds&is_conversation=eq.true&date_added=gte.'+ago56+'&order=date_added.asc,client_id.asc'),
     sbGet('checkins','?select=id,client_id,hc_id,checkin_date,status,has_recording,calendar_event_title&order=checkin_date.desc&limit=500').catch(()=>[]),
     sbGet('sync_status','?select=last_success_at,weekly_targets&id=eq.1').catch(()=>[]),
+    sbGet('upsell_history','?select=client_id,stage,changed_at&stage=in.(Pitched,Active,Closed,Not%20Interested,Failed%20Negotiation)&limit=5000').catch(()=>[]),
   ]);
   console.log(`[messages] ${msgs.length} loaded`);
   const jobsRaw = await sbGet('client_jobs','?select=client_id,job_name,job_status,active_days,candidates_presented,created_on&job_status=eq.Open&limit=2000').catch(()=>[]);
@@ -755,6 +767,16 @@ async function load() {
     const lc=rcm[u.client_id]||c.last_conv_at||null;
     return {...u,name:c.name||'?',hc_id:c.hc_id||null,last_conv_at:lc};
   });
+  // Build D.firstPitches: per-client earliest post-pitch entry from history
+  {
+    const chm={};for(const c of clients)chm[c.id]=c.hc_id;
+    const fp={};
+    for(const row of pitchHistoryRaw){
+      if(isBulkDate(row.changed_at))continue;
+      if(!fp[row.client_id]||row.changed_at<fp[row.client_id])fp[row.client_id]=row.changed_at;
+    }
+    D.firstPitches=Object.entries(fp).map(([cid,dt])=>({client_id:cid,hc_id:chm[cid]||null,first_pitch_at:dt}));
+  }
   D.msgs = msgs;
 
   // Check-ins (already loaded in Promise.all)
@@ -961,12 +983,11 @@ function renderHCCards(){
   const _bog=new Date(Date.now()-5*3600000),_dow=_bog.getUTCDay(),_dtm=_dow===0?6:_dow-1;
   const _mon=new Date(_bog.getTime()-_dtm*86400000);_mon.setUTCHours(0,0,0,0);
   const wkS=new Date(_mon.getTime()+5*3600000),wkE=new Date(wkS.getTime()+7*86400000);
-  const PITCH_BEYOND=new Set(['Pitched','Active','Closed','Not Interested','Failed Negotiation']);
   const HC_TGT={'Q0aVHyBbFhqJxWuEKLMt':'mateo','uqAeFfwbHnH0lCwSvprz':'matt','YNlj27LBFv74CKLrh1zy':'mf'};
   document.getElementById('hc-cards').innerHTML=Object.entries(HCC).map(([id,h])=>{
     const openN=(HCF==='All'||HCF===id)?D.open.filter(c=>c.hc_id===id).length:null;
     const conv7=D.msgs.filter(m=>m.hc_id===id&&isConv(m)&&dago(m.date_added)<=7).length;
-    const pWk=D.upsell.filter(u=>u.hc_id===id&&PITCH_BEYOND.has(u.stage)&&!isBulkDate(u.stage_since)&&new Date(u.stage_since)>=wkS&&new Date(u.stage_since)<wkE).length;
+    const pWk=D.firstPitches.filter(p=>p.hc_id===id&&new Date(p.first_pitch_at)>=wkS&&new Date(p.first_pitch_at)<wkE).length;
     const pGoal=D.weeklyTargets?.[HC_TGT[id]]??null;
     const pPct=pGoal?Math.round(pWk/pGoal*100):null;
     const init=h.s.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -1220,26 +1241,54 @@ function renderPlaced(){
 
 // ─── UPSELL ───
 const UST_ES={'Seeded':'Seeded','Detected':'Detected','Pitched':'Pitched','Active':'Active','Closed':'Closed','Failed Negotiation':'Neg. failed','Not Interested':'Not interested'};
+const UST_DESC={'Seeded':'Potential identified','Detected':'Opportunity confirmed','Pitched':'Offer presented','Active':'In active process','Closed':'Role filled','Failed Negotiation':'Negotiation broke down','Not Interested':'Client declined'};
+const INPROG=['Seeded','Detected','Pitched','Active'];
+const RESULT=['Closed','Failed Negotiation','Not Interested'];
+function setUStageFilter(s){USF=USF===s?'':s;renderUpsell();}
 function renderUpsell(){
   const data=filt(D.upsell,'upsell');
-  const active=data.filter(u=>!['Closed','Not Interested','Failed Negotiation'].includes(u.stage));
-  const pitched=data.filter(u=>['Pitched','Active'].includes(u.stage)).length;
-  const closed=data.filter(u=>u.stage==='Closed').length;
-  document.getElementById('upsell-kpis').innerHTML=[
-    {l:'Active opportunities',v:active.length,nc:false},
-    {l:'Pitched / Active',v:pitched,amb:pitched>0},
-    {l:'Closed',v:closed,grn:closed>0},
-    {l:'Total in pipeline',v:data.length,nc:false},
-  ].map(k=>`<div class="card kpi">
-    <div class="k">${k.l}</div>
-    <div class="v" style="${k.amb?'color:var(--amb)':k.grn?'color:var(--grn)':''}">${k.v}</div>
-  </div>`).join('');
-  set('uhs',`${active.length} active · ${closed} closed · ${data.length} total`);
-  document.getElementById('ufunnel').innerHTML=UST.map(s=>{
+  const nClosed=data.filter(u=>u.stage==='Closed').length;
+  const nResult=data.filter(u=>RESULT.includes(u.stage)).length;
+  const closeRate=nResult>0?Math.round(nClosed/nResult*100):null;
+  const nInProg=data.filter(u=>INPROG.includes(u.stage)).length;
+  const inProgCards=INPROG.map((s,i)=>{
     const n=data.filter(u=>u.stage===s).length;
-    return`<div class="funnel-card"><div class="fn">${UST_ES[s]||s}</div><div class="fv">${n}</div></div>`;
+    const alert14=['Pitched','Active'].includes(s)?data.filter(u=>u.stage===s&&u.last_external_contact&&dago(u.last_external_contact)>14).length:0;
+    const on=USF===s;
+    return`${i>0?'<div class="u-stg-arrow">›</div>':''}<div class="u-stg-card${on?' on':''}" onclick="setUStageFilter('${s}')">
+      <div class="u-stg-n" style="color:${on?'var(--p)':'inherit'}">${n}</div>
+      <div class="u-stg-nm">${s}</div>
+      <div class="u-stg-desc">${UST_DESC[s]||''}</div>
+      ${alert14>0?`<div class="u-stg-alert">⚠ ${alert14} >14d</div>`:''}
+    </div>`;
   }).join('');
-  const rows=sortArr(data,'upsell');
+  const resultCards=RESULT.map((s,i)=>{
+    const n=data.filter(u=>u.stage===s).length;
+    const on=USF===s;
+    const col=s==='Closed'?'var(--grn)':s==='Not Interested'?'var(--mut)':'var(--red)';
+    return`${i>0?'<div class="u-stg-arrow" style="font-size:12px;color:var(--line)">·</div>':''}<div class="u-stg-card${on?' on':''}" onclick="setUStageFilter('${s}')">
+      <div class="u-stg-n" style="color:${col}">${n}</div>
+      <div class="u-stg-nm">${UST_ES[s]||s}</div>
+      <div class="u-stg-desc">${UST_DESC[s]||''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('u-funnel-wrap').innerHTML=`
+    <div style="display:flex;gap:12px;margin-bottom:${USF?'8':'14'}px;flex-wrap:wrap">
+      <div class="u-panel u-panel-inprog" style="flex:1;min-width:280px">
+        <div class="u-panel-hdr"><span>In progress</span><span class="u-panel-n">${nInProg}</span></div>
+        <div style="display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap">${inProgCards}</div>
+      </div>
+      <div class="u-panel" style="min-width:240px;max-width:340px">
+        <div class="u-panel-hdr"><span>Result</span><span class="u-panel-n">${nResult}</span></div>
+        <div style="display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap">${resultCards}</div>
+        <div style="font-size:12px;color:var(--mut);margin-top:10px;border-top:1px solid var(--line);padding-top:8px">Close rate <b style="color:var(--txt)">${nClosed} of ${nResult}${closeRate!==null?' · '+closeRate+'%':''}</b></div>
+      </div>
+    </div>
+    ${USF?`<div style="margin-bottom:8px;font-size:12.5px;color:var(--p);font-weight:600;display:flex;align-items:center;gap:6px">Filtering: ${USF} <span onclick="setUStageFilter('${USF}')" style="cursor:pointer;opacity:.6;font-size:14px;line-height:1" title="Clear filter">✕</span></div>`:''}
+  `;
+  set('uhs',`${nInProg} active · ${nClosed} closed · ${data.length} total`);
+  const viewData=USF?data.filter(u=>u.stage===USF):data;
+  const rows=sortArr(viewData,'upsell');
   document.getElementById('tb-upsell').innerHTML=rows.map(u=>{
     const d=u.last_external_contact?dago(u.last_external_contact):null;
     return`<tr onclick="openDrawer('${u.client_id}')">
@@ -1250,7 +1299,8 @@ function renderUpsell(){
       <td class="cm-cell" data-tip="${u.notes||''}">${u.notes||'<span style="color:var(--mut2)">—</span>'}</td>
     </tr>`;
   }).join('');
-  document.getElementById('ukanban').innerHTML=UST.map(s=>{
+  const kanbanStages=USF?[USF]:UST;
+  document.getElementById('ukanban').innerHTML=kanbanStages.map(s=>{
     const cards=rows.filter(u=>u.stage===s);
     return`<div class="kan-col"><h4>${s}<span>${cards.length}</span></h4>${cards.map(u=>{
       const d=u.last_external_contact?dago(u.last_external_contact):null;
