@@ -527,9 +527,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
       <span class="chip" data-pf="phase" data-v="M3+">M3+ · 90d+</span>
       <div class="chip-sep"></div>
       <span class="chip on" data-pf="status" data-sv="">All <b id="sc-all"></b></span>
-      <span class="chip" data-pf="status" data-sv="healthy">Healthy <b id="sc-healthy"></b></span>
-      <span class="chip" data-pf="status" data-sv="atrisk">At risk <b id="sc-atrisk"></b></span>
-      <span class="chip" data-pf="status" data-sv="nc30">No conv. 30d+ <b id="sc-nc30"></b></span>
       <span class="chip" data-pf="status" data-sv="nocontact">No contact on record <b id="sc-nc0"></b></span>
     </div>
     <div class="tbl-wrap">
@@ -547,10 +544,6 @@ table tbody td{padding:11px 12px;vertical-align:top}
   <!-- UPSELL -->
   <div class="view" id="v-upsell">
     <div class="view-header">
-      <div class="view-header-left">
-        <h2>Upsell pipeline</h2>
-        <span class="vh-sub" id="uhs">Active upsell pipeline</span>
-      </div>
       <div class="view-header-right">
         <div class="view-toggle" id="utog">
           <button data-uv="table">Table</button>
@@ -1184,16 +1177,12 @@ function renderPlaced(){
   const nc=all.filter(c=>!c.last_conv_at);
   set('placed-sub',`${all.length} placed client${all.length!==1?'s':''} · post-placement follow-up`);
   const sinContacto=all.filter(c=>!c.last_conv_at||dago(c.last_conv_at)>30).length;
-  const contactoRec=all.filter(c=>c.last_conv_at&&dago(c.last_conv_at)<=30).length;
-  const m1cnt=all.filter(c=>phase(c)==='M1').length;
   document.getElementById('placed-kpis').innerHTML=[
     {l:'Total placed',v:all.length,bold:true},
     {l:'No contact 30d+',v:sinContacto,red:sinContacto>0},
-    {l:'Recent contact',v:contactoRec,grn:contactoRec>0},
-    {l:'M1 (first 30d)',v:m1cnt},
   ].map(k=>`<div class="card kpi">
     <div class="k">${k.l}</div>
-    <div class="v" style="${k.red?'color:var(--red)':k.grn?'color:var(--grn)':k.bold?'color:var(--p)':''}">${k.v}</div>
+    <div class="v" style="${k.red?'color:var(--red)':k.bold?'color:var(--p)':''}">${k.v}</div>
   </div>`).join('');
   const nce=document.getElementById('no-ctr');
   if(nc.length>0){
@@ -1205,9 +1194,6 @@ function renderPlaced(){
   function pSt(c){const d=dago(c.last_conv_at);if(d===null)return'nocontact';if(d<15)return'healthy';if(d<=30)return'atrisk';return'nc30';}
   const stC={};for(const c of all)stC[pSt(c)]=(stC[pSt(c)]||0)+1;
   document.getElementById('sc-all').textContent=all.length;
-  document.getElementById('sc-healthy').textContent=stC.healthy||0;
-  document.getElementById('sc-atrisk').textContent=stC.atrisk||0;
-  document.getElementById('sc-nc30').textContent=stC.nc30||0;
   document.getElementById('sc-nc0').textContent=stC.nocontact||0;
   const chipStatus=document.querySelector('#placed-chips .chip.on[data-pf="status"]')?.dataset.sv||'';
   // Phase chip filter
@@ -1294,7 +1280,6 @@ function renderUpsell(){
     <div style="font-size:13px;color:var(--mut);margin-bottom:${USF?'10px':'0'}">Close rate (of those that reached a result): <b style="color:var(--txt)">${nClosed} of ${nResult}${closeRate!==null?' · '+closeRate+'%':''}</b></div>
     ${USF?`<div onclick="setUStageFilter('${USF}')" style="display:inline-flex;align-items:center;gap:4px;background:#EDE9FE;color:#6D28D9;border-radius:20px;padding:5px 14px 5px 12px;font-size:13px;font-weight:500;cursor:pointer;margin-top:8px">Filtering: ${USF} <span style="font-size:16px;line-height:1;opacity:.6">×</span></div>`:''}
   `;
-  set('uhs',`${nInProg} active · ${nClosed} closed · ${data.length} total`);
   const viewData=USF?data.filter(u=>u.stage===USF):data;
   const rows=sortArr(viewData,'upsell');
   document.getElementById('tb-upsell').innerHTML=rows.map(u=>{
