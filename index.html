@@ -802,7 +802,7 @@ async function load() {
     const lastSync=lastUpdRow[0]?.last_success_at||null;
     const sdot=document.getElementById('sdot');
     const stEl=document.getElementById('stime');
-    if(!lastSync){stEl.textContent='Sin datos de sync';return;}
+    if(!lastSync){stEl.textContent='No sync data';return;}
     // Manual UTC-5 (Colombia no tiene DST — siempre UTC-5)
     const MO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
     function fmtBog(dt){const d=new Date(new Date(dt).getTime()-5*3600000);return d.getUTCDate()+' '+MO[d.getUTCMonth()]+' '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');}
@@ -1241,9 +1241,16 @@ function renderPlaced(){
 
 // ─── UPSELL ───
 const UST_ES={'Seeded':'Seeded','Detected':'Detected','Pitched':'Pitched','Active':'Active','Closed':'Closed','Failed Negotiation':'Neg. failed','Not Interested':'Not interested'};
-const UST_DESC={'Seeded':'Potential identified','Detected':'Opportunity confirmed','Pitched':'Offer presented','Active':'In active process','Closed':'Role filled','Failed Negotiation':'Negotiation broke down','Not Interested':'Client declined'};
 const INPROG=['Seeded','Detected','Pitched','Active'];
 const RESULT=['Closed','Failed Negotiation','Not Interested'];
+const IPBG=['#EDE9FE','#DDD6FE','#C4B5FD','#6D28D9'];
+const IPTXT=['#5B21B6','#5B21B6','#3B0764','#ffffff'];
+const IPDESC_COL=['#7C3AED','#7C3AED','#4C1D95','rgba(255,255,255,.75)'];
+const IPALERT_COL=['#B45309','#B45309','#78350F','rgba(255,230,100,.9)'];
+const DESC_ES={Seeded:'idea seeded',Detected:'real opportunity',Pitched:'offer sent',Active:'negotiating',Closed:'won','Failed Negotiation':'lost','Not Interested':'declined'};
+const RSBG={Closed:'#D1FAE5','Failed Negotiation':'#FEE2E2','Not Interested':'#F3F4F6'};
+const RSNUM={Closed:'#059669','Failed Negotiation':'#DC2626','Not Interested':'#9CA3AF'};
+const RSLBL={Closed:'#065F46','Failed Negotiation':'#9B1C1C','Not Interested':'#6B7280'};
 function setUStageFilter(s){USF=USF===s?'':s;renderUpsell();}
 function renderUpsell(){
   const data=filt(D.upsell,'upsell');
@@ -1251,43 +1258,41 @@ function renderUpsell(){
   const nResult=data.filter(u=>RESULT.includes(u.stage)).length;
   const closeRate=nResult>0?Math.round(nClosed/nResult*100):null;
   const nInProg=data.filter(u=>INPROG.includes(u.stage)).length;
-  const IPCLR=['rgba(109,40,217,.3)','rgba(109,40,217,.5)','rgba(109,40,217,.75)','var(--p)'];
   const inProgCards=INPROG.map((s,i)=>{
     const n=data.filter(u=>u.stage===s).length;
     const alert14=data.filter(u=>u.stage===s&&u.stage_since&&!isBulkDate(u.stage_since)&&dago(u.stage_since)>14).length;
     const on=USF===s;
-    const numColor=on?'var(--p)':IPCLR[i];
-    const topBorder=on?'':`border-top:2px solid ${IPCLR[i]}`;
-    return`${i>0?'<div class="u-stg-arrow">›</div>':''}<div class="u-stg-card${on?' on':''}" style="${topBorder}" onclick="setUStageFilter('${s}')">
-      <div class="u-stg-n" style="color:${numColor}">${n}</div>
-      <div class="u-stg-nm">${s}</div>
-      <div class="u-stg-desc">${UST_DESC[s]||''}</div>
-      ${alert14>0?`<div class="u-stg-alert">⚠ ${alert14} sin moverse +14d</div>`:''}
+    const descLine=alert14>0
+      ?`<span style="color:${IPALERT_COL[i]}">▲ ${alert14} stuck +14d</span>`
+      :`<span style="color:${IPDESC_COL[i]}">${DESC_ES[s]||''}</span>`;
+    return`${i>0?`<div style="font-size:17px;color:#9CA3AF;padding:0 2px;flex-shrink:0;align-self:center">›</div>`:''}<div onclick="setUStageFilter('${s}')" style="flex:1;min-width:0;background:${IPBG[i]};border:2px solid ${on?'#6D28D9':'transparent'};border-radius:12px;padding:14px 14px 12px;cursor:pointer;box-sizing:border-box">
+      <div style="font-size:12px;font-weight:700;color:${IPTXT[i]};margin-bottom:4px">${s}</div>
+      <div style="font-size:36px;font-weight:800;color:${IPTXT[i]};line-height:1;margin-bottom:6px">${n}</div>
+      <div style="font-size:12px">${descLine}</div>
     </div>`;
   }).join('');
-  const resultCards=RESULT.map((s,i)=>{
+  const resCards=RESULT.map((s,i)=>{
     const n=data.filter(u=>u.stage===s).length;
     const on=USF===s;
-    const col=s==='Closed'?'var(--grn)':s==='Not Interested'?'var(--mut)':'var(--red)';
-    return`${i>0?'<div class="u-stg-arrow" style="font-size:12px;color:var(--line)">·</div>':''}<div class="u-stg-card${on?' on':''}" onclick="setUStageFilter('${s}')">
-      <div class="u-stg-n" style="color:${col}">${n}</div>
-      <div class="u-stg-nm">${UST_ES[s]||s}</div>
-      <div class="u-stg-desc">${UST_DESC[s]||''}</div>
+    return`${i>0?`<div style="width:8px;flex-shrink:0"></div>`:''}<div onclick="setUStageFilter('${s}')" style="flex:1;min-width:0;background:${RSBG[s]};border:2px solid ${on?'#6D28D9':'transparent'};border-radius:12px;padding:14px 14px 12px;cursor:pointer;box-sizing:border-box">
+      <div style="font-size:12px;font-weight:700;color:${RSLBL[s]};margin-bottom:4px">${UST_ES[s]||s}</div>
+      <div style="font-size:36px;font-weight:800;color:${RSNUM[s]};line-height:1;margin-bottom:6px">${n}</div>
+      <div style="font-size:12px;color:${RSLBL[s]}">${DESC_ES[s]||''}</div>
     </div>`;
   }).join('');
   document.getElementById('u-funnel-wrap').innerHTML=`
-    <div style="display:flex;gap:12px;margin-bottom:${USF?'8':'14'}px;flex-wrap:wrap">
-      <div class="u-panel u-panel-inprog" style="flex:1;min-width:280px">
-        <div class="u-panel-hdr"><span>In progress</span><span class="u-panel-n">${nInProg}</span></div>
-        <div style="display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap">${inProgCards}</div>
+    <div style="display:flex;gap:16px;margin-bottom:12px;align-items:flex-start">
+      <div style="flex:3;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;margin-bottom:14px">IN PROGRESS · ${nInProg}</div>
+        <div style="display:flex;align-items:center;gap:6px">${inProgCards}</div>
       </div>
-      <div class="u-panel" style="min-width:240px;max-width:340px">
-        <div class="u-panel-hdr"><span>Result</span><span class="u-panel-n">${nResult}</span></div>
-        <div style="display:flex;align-items:flex-start;gap:4px;flex-wrap:wrap">${resultCards}</div>
-        <div style="font-size:12px;color:var(--mut);margin-top:10px;border-top:1px solid var(--line);padding-top:8px">Close rate <b style="color:var(--txt)">${nClosed} of ${nResult}${closeRate!==null?' · '+closeRate+'%':''}</b></div>
+      <div style="flex:2;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;margin-bottom:14px">RESULT · ${nResult}</div>
+        <div style="display:flex;align-items:stretch;gap:8px">${resCards}</div>
       </div>
     </div>
-    ${USF?`<div style="margin-bottom:8px;font-size:12.5px;color:var(--p);font-weight:600;display:flex;align-items:center;gap:6px">Filtering: ${USF} <span onclick="setUStageFilter('${USF}')" style="cursor:pointer;opacity:.6;font-size:14px;line-height:1" title="Clear filter">✕</span></div>`:''}
+    <div style="font-size:13px;color:var(--mut);margin-bottom:${USF?'10px':'0'}">Close rate (of those that reached a result): <b style="color:var(--txt)">${nClosed} of ${nResult}${closeRate!==null?' · '+closeRate+'%':''}</b></div>
+    ${USF?`<div onclick="setUStageFilter('${USF}')" style="display:inline-flex;align-items:center;gap:4px;background:#EDE9FE;color:#6D28D9;border-radius:20px;padding:5px 14px 5px 12px;font-size:13px;font-weight:500;cursor:pointer;margin-top:8px">Filtering: ${USF} <span style="font-size:16px;line-height:1;opacity:.6">×</span></div>`:''}
   `;
   set('uhs',`${nInProg} active · ${nClosed} closed · ${data.length} total`);
   const viewData=USF?data.filter(u=>u.stage===USF):data;
