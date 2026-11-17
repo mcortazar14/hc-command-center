@@ -705,7 +705,7 @@ async function load() {
   const todayStr=new Date().toISOString().slice(0,10);
   for(const ci of checkinsRaw){
     if(ci.checkin_date>todayStr)continue;
-    if(ci.status!=='no_realizado'){if(!ciAttemptMap[ci.client_id]||ci.checkin_date>ciAttemptMap[ci.client_id])ciAttemptMap[ci.client_id]=ci.checkin_date;}
+    if(ci.status==='realizado'||ci.status==='no_show'){if(!ciAttemptMap[ci.client_id]||ci.checkin_date>ciAttemptMap[ci.client_id])ciAttemptMap[ci.client_id]=ci.checkin_date;}
     if(ci.status==='realizado'){if(!ciConvMap[ci.client_id]||ci.checkin_date>ciConvMap[ci.client_id])ciConvMap[ci.client_id]=ci.checkin_date;}
   }
   function maxDt(...ds){const v=ds.filter(Boolean);return v.length?v.reduce((a,b)=>a>b?a:b):null;}
@@ -1533,8 +1533,8 @@ function renderCheckins(){
     :rows.map(c=>{
       const cl=allClients.find(x=>x.id===c.client_id);
       const h=HCC[c.hc_id];
-      const sc=c.status==='realizado'?'p-grn':c.status==='no_realizado'?'p-red':'p-n';
-      const sl=c.status==='realizado'?'Done':c.status==='no_realizado'?'Missed':'To confirm';
+      const sc=c.status==='realizado'?'p-grn':c.status==='no_show'?'p-red':'p-n';
+      const sl=c.status==='realizado'?'Done':c.status==='no_show'?'Missed':'To confirm';
       const dAgo=dago(c.checkin_date);
       const dTxt=dAgo===0?'Today':dAgo===1?'Yesterday':fmtDate(c.checkin_date);
       return`<tr onclick="openDrawer('${c.client_id}')">
