@@ -649,7 +649,7 @@ const UST = ['Seeded','Detected','Pitched','Active','Closed','Failed Negotiation
 const USC = { Seeded:'p-n', Detected:'p-n', Pitched:'p-amb', Active:'p-p', Closed:'p-grn', 'Failed Negotiation':'p-red', 'Not Interested':'p-n' };
 const TODAY = new Date();
 
-let D = { open:[], placed:[], paused:[], pending:[], upsell:[], msgs:[], checkins:[], weeklyTargets:null, firstPitches:[] };
+let D = { open:[], placed:[], paused:[], pending:[], canceled:[], upsell:[], msgs:[], checkins:[], weeklyTargets:null, firstPitches:[] };
 let SORT = { open:['name',1], placed:['_placed_sort',-1], upsell:['_urgency',-1], paused:['name',1], pending:['_wdays',-1] };
 let HCF = 'All', SQ = {}, VIEW = 'today', PER = 'tw', PHASE = null, UV = 'kanban', USF = '';
 let ki = 0, kitems = [];
