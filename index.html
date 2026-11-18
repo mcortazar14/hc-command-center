@@ -1546,10 +1546,15 @@ function renderCheckins(){
     :rows.map(c=>{
       const cl=allClients.find(x=>x.id===c.client_id);
       const h=HCC[c.hc_id];
-      const sc=c.status==='realizado'?'p-grn':c.status==='no_show'||c.status==='no_realizado'?'p-red':'p-n';
-      const sl=c.status==='realizado'?'Done':c.status==='no_show'?'Client no-show':c.status==='no_realizado'?'Missed':'To confirm';
       const dAgo=dago(c.checkin_date);
       const dTxt=dAgo===0?'Today':dAgo===1?'Yesterday':fmtDate(c.checkin_date);
+      const hasFathom=c.hc_id==='Q0aVHyBbFhqJxWuEKLMt';
+      let sc,sl;
+      if(c.status==='realizado'){sc='p-grn';sl='Done';}
+      else if(c.status==='no_show'){sc='p-red';sl='Client no-show';}
+      else if(c.status==='no_realizado'){sc=hasFathom?'p-amb':'p-n';sl=hasFathom?'No recording':'Unverified';}
+      else if(dAgo<=0){sc='p-n';sl='Scheduled';}
+      else{sc=hasFathom?'p-amb':'p-n';sl=hasFathom?'No recording':'Unverified';}
       return`<tr onclick="openDrawer('${c.client_id}')">
         <td><div class="td-main">
           <div class="td-name">${cl?.name||c.client_id}</div>
