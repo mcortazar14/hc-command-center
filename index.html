@@ -711,15 +711,11 @@ async function load() {
   function maxDt(...ds){const v=ds.filter(Boolean);return v.length?v.reduce((a,b)=>a>b?a:b):null;}
   function computeContact(mc){const u=uMap[mc.id];return maxDt(mc.last_attempt_at,mc.last_conv_at,u?.last_external_contact||null,ciAttemptMap[mc.id]?ciAttemptMap[mc.id]+'T12:00:00Z':null);}
   function computeConv(mc){const u=uMap[mc.id];return maxDt(mc.last_conv_at,(u?.client_responded&&u?.last_external_contact)?u.last_external_contact:null,ciConvMap[mc.id]?ciConvMap[mc.id]+'T12:00:00Z':null);}
-  function computeContactCh(mc){const u=uMap[mc.id];const pts=[{dt:mc.last_attempt_at,ch:'GHL'},{dt:mc.last_conv_at,ch:'GHL'},{dt:u?.last_external_contact||null,ch:u?.last_external_contact?(u.external_channel||'Upsell'):null},{dt:ciAttemptMap[mc.id]?ciAttemptMap[mc.id]+'T12:00:00Z':null,ch:'Check-in'}].filter(p=>p.dt&&p.ch);if(!pts.length)return null;return pts.reduce((a,b)=>a.dt>=b.dt?a:b).ch;}
-  function computeConvCh(mc){const u=uMap[mc.id];const pts=[{dt:mc.last_conv_at,ch:'GHL'},{dt:(u?.client_responded&&u?.last_external_contact)?u.last_external_contact:null,ch:(u?.client_responded&&u?.last_external_contact)?(u.external_channel||'Upsell'):null},{dt:ciConvMap[mc.id]?ciConvMap[mc.id]+'T12:00:00Z':null,ch:'Check-in'}].filter(p=>p.dt&&p.ch);if(!pts.length)return null;return pts.reduce((a,b)=>a.dt>=b.dt?a:b).ch;}
-  function buildTimeline(msgs,ciRows,u){const ev=[];for(const m of msgs)ev.push({dt:m.date_added,type:'ghl',data:m});for(const ci of ciRows)ev.push({dt:ci.checkin_date+'T12:00:00Z',type:'checkin',data:ci});if(u?.last_external_contact)ev.push({dt:u.last_external_contact,type:'upsell',data:u});ev.sort((a,b)=>b.dt.localeCompare(a.dt));return ev;}
-  function tlLcv(evs){const e=evs.find(ev=>(ev.type==='checkin'&&ev.data.status==='realizado')||(ev.type==='ghl'&&ev.data.is_conversation)||(ev.type==='upsell'&&ev.data.client_responded));return e?e.dt:null;}
-  D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc),_lcCh:computeContactCh(mc),_lcvCh:computeConvCh(mc),_ci:ciConvMap[c.id]?ciConvMap[c.id]+'T12:00:00Z':null};});
-  D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_lc:computeContact(mc),_lcv:computeConv(mc),_lcCh:computeContactCh(mc),_lcvCh:computeConvCh(mc)};});
-  D.paused  = clients.filter(c=>c.status==='paused').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc),_lcCh:computeContactCh(mc),_lcvCh:computeConvCh(mc)};});
-  D.pending  = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc),_lcCh:computeContactCh(mc),_lcvCh:computeConvCh(mc)};});
-  D.canceled = clients.filter(c=>c.status==='canceled').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc),_lcCh:computeContactCh(mc),_lcvCh:computeConvCh(mc)};});
+  D.open    = clients.filter(c=>c.status==='open').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_jobs:jobsMap[c.id]||[],_lc:computeContact(mc),_lcv:computeConv(mc),_ci:ciConvMap[c.id]?ciConvMap[c.id]+'T12:00:00Z':null};});
+  D.placed  = clients.filter(c=>c.status==='closed'&&c.rcrm_status==='Closed').map(c=>{const mc=mergeConv(c);return{...mc,_u:uMap[c.id]||null,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.paused  = clients.filter(c=>c.status==='paused').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.pending  = clients.filter(c=>c.status==='pending').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
+  D.canceled = clients.filter(c=>c.status==='canceled').map(c=>{const mc=mergeConv(c);return{...mc,_lc:computeContact(mc),_lcv:computeConv(mc)};});
   const clientIdSet = new Set(clients.map(c=>c.id));
   D.upsell  = upsell.filter(u=>u.stage!=='N/A'&&clientIdSet.has(u.client_id)).map(u=>{
     const c=clients.find(x=>x.id===u.client_id)||{};
@@ -1182,8 +1178,8 @@ function renderPlaced(){
       </div></td>
       <td><span class="pill" style="background:${phCol}1a;color:${phCol};border:1px solid ${phCol}40">${ph}</span></td>
       <td class="num"><span style="font-weight:700;color:${phCol}">${pd!=null?pd+'d':'—'}</span></td>
-      <td><span style="color:${lcCol}">${lcAgo}</span>${c._lcCh?`<div style="font-size:10px;color:var(--mut);margin-top:1px">${c._lcCh}</div>`:''}</td>
-      <td><span style="color:${lcvCol}">${lcvAgo}</span>${c._lcvCh?`<div style="font-size:10px;color:var(--mut);margin-top:1px">${c._lcvCh}</div>`:''}</td>
+      <td><span style="color:${lcCol}">${lcAgo}</span></td>
+      <td><span style="color:${lcvCol}">${lcvAgo}</span></td>
       <td>${pAlert(c)}</td>
     </tr>`;
   }).join('')||emptyState('No placed clients','Try a different filter or HC');
@@ -1430,18 +1426,12 @@ async function openDrawer(id){
   const c=[...D.open,...D.placed,...D.paused,...D.pending,...D.canceled].find(x=>x.id===id);
   if(!c)return;
   const u=D.upsell.find(x=>x.client_id===id);
-  const[msgs,hist,ciRows,emailRow]=await Promise.all([
+  const[msgs,hist]=await Promise.all([
     sbGet('messages',`?client_id=eq.${id}&order=date_added.desc&limit=20`),
     sbGet('upsell_history',`?client_id=eq.${id}&order=changed_at.asc&limit=20`),
-    sbGet('checkins',`?client_id=eq.${id}&status=in.(realizado,no_show)&select=checkin_date,status,has_recording,calendar_event_title,guest_email&order=checkin_date.desc&limit=10`),
-    sbGet('clients',`?id=eq.${id}&select=ghl_email,rcrm_email`).catch(()=>[{}]),
   ]);
-  const ghlEmail=emailRow[0]?.ghl_email||null;
-  const clientEmail=ghlEmail||(ciRows.find(r=>r.guest_email)?.guest_email||null);
   const h=HCC[c.hc_id];
-  const tlEvents=buildTimeline(msgs,ciRows,u);
-  const tlLcvDt=tlLcv(tlEvents);
-  const d=dago(tlLcvDt);
+  const d=dago(c.last_conv_at);
   let nba='';
   if(u&&['Pitched','Active'].includes(u.stage)){
     const cd=u.last_external_contact?dago(u.last_external_contact):null;
@@ -1489,11 +1479,9 @@ async function openDrawer(id){
     </div>`:'';
   const timelineSection=isOpen?'':`
     <div class="ds"><h4>Activity history</h4>
-      ${tlEvents.length===0?'<div style="color:var(--mut);font-size:13px">No activity logged.</div>':tlEvents.slice(0,15).map(ev=>{
-        if(ev.type==='ghl'){const m=ev.data;const tp=m.message_type||'MSG';const tpFull=tp==='Llamada'?'Call':tp==='Email'?'Email':tp==='SMS'?'SMS':tp==='WhatsApp'?'WhatsApp':tp==='IG'?'Instagram':tp==='FB'?'Facebook':tp;const tpAbbr=tp==='Llamada'?'CA':tp==='Email'?'EM':tp==='WhatsApp'?'WA':tp==='SMS'?'SMS':tp.slice(0,2).toUpperCase();const co=chnC[tp]||'#6b6875';return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tpAbbr}</span><span style="font-size:12px;font-weight:600;margin-right:2px">${tpFull}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;}
-        if(ev.type==='checkin'){const ci=ev.data;const isNS=ci.status==='no_show';return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${isNS?'#DC2626':'#059669'};width:21px;height:21px;font-size:8px">CHK</span>${isNS?pill('p-red','Client no-show'):pill('p-grn','Check-in')}</div><div class="tl-sub">${fmtDate(ci.checkin_date)}${ci.has_recording?' · Recording':''}</div></div>`;}
-        if(ev.type==='upsell'){const ue=ev.data;const uch=ue.external_channel||'External';const uAbbr=uch==='WhatsApp'?'WA':uch==='Slack'?'SL':uch.slice(0,2).toUpperCase();return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:#7C3AED;width:21px;height:21px;font-size:8px">${uAbbr}</span><span style="font-size:12px;font-weight:600;margin-right:2px">${uch}</span>${pill('p-p','Upsell contact')}</div><div class="tl-sub">${fmtDate(ue.last_external_contact)}</div></div>`;}
-        return'';
+      ${msgs.length===0?'<div style="color:var(--mut);font-size:13px">No activity logged.</div>':msgs.slice(0,8).map(m=>{
+        const tp=m.message_type||'MSG';const tpd=(tp==='Llamada'?'Call':tp);const co=chnC[tp]||'#6b6875';
+        return`<div class="tl-item"><div class="tl-top"><span class="av" style="background:${co};width:21px;height:21px;font-size:8px">${tpd.slice(0,3)}</span>${m.is_conversation?pill('p-grn','Conversation'):pill('p-n','Attempt')}<span style="margin-left:auto;font-size:11px;color:var(--mut)">${m.direction||''}</span></div><div class="tl-sub">${fmtDate(m.date_added)}${m.duration_seconds?' · '+Math.round(m.duration_seconds/60)+' min':''}</div></div>`;
       }).join('')}
     </div>`;
   const statsSection=isOpen?`
@@ -1510,14 +1498,13 @@ async function openDrawer(id){
         <div><div>${conv}</div><div>Conversations</div></div>
         <div><div>${attempts}</div><div>Attempts</div></div>
         <div><div>${msgs.length}</div><div>Total messages</div></div>
-        <div><div>${ciRows.length||'—'}</div><div>Check-ins</div></div>
+        <div><div>${c.candidates_presented??'—'}</div><div>Candidates</div></div>
       </div>
     </div>`;
   document.getElementById('dc').innerHTML=`
     <div class="dh">
       <div class="dh-top"><button class="dh-x" onclick="closeAll()">✕</button></div>
       <h2>${c.name}</h2>
-      ${clientEmail?`<div style="font-size:12px;color:var(--mut);margin:2px 0 4px">${clientEmail}</div>`:''}
       <div class="dh-pills">${hcBadge(c.hc_id)}${ph?pill(phC[ph]||'p-n',ph):''}${c.status==='closed'?pAlert(c):c.status!=='open'?pill('p-n',c.status):''}${u?pill(USC[u.stage]||'p-n','Upsell: '+u.stage):''}</div>
     </div>
     ${rolesSection}
@@ -1546,8 +1533,8 @@ function renderCheckins(){
     :rows.map(c=>{
       const cl=allClients.find(x=>x.id===c.client_id);
       const h=HCC[c.hc_id];
-      const sc=c.status==='realizado'?'p-grn':c.status==='no_show'||c.status==='no_realizado'?'p-red':'p-n';
-      const sl=c.status==='realizado'?'Done':c.status==='no_show'?'Client no-show':c.status==='no_realizado'?'Missed':'To confirm';
+      const sc=c.status==='realizado'?'p-grn':c.status==='no_show'?'p-red':'p-n';
+      const sl=c.status==='realizado'?'Done':c.status==='no_show'?'Missed':'To confirm';
       const dAgo=dago(c.checkin_date);
       const dTxt=dAgo===0?'Today':dAgo===1?'Yesterday':fmtDate(c.checkin_date);
       return`<tr onclick="openDrawer('${c.client_id}')">
