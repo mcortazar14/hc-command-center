@@ -779,7 +779,7 @@ async function load() {
 // ─── helpers ───
 const $=s=>document.querySelector(s);
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function dago(dt){if(!dt)return null;return Math.round((Date.now()-new Date(dt))/864e5);}
+function dago(dt){if(!dt)return null;if(dt.length===10){const bog=new Date(Date.now()-18e6).toISOString().slice(0,10);return Math.round((new Date(bog+'T00:00:00Z')-new Date(dt+'T00:00:00Z'))/864e5);}return Math.round((Date.now()-new Date(dt))/864e5);}
 function dfromNow(dt){if(!dt)return null;return Math.round((new Date(dt)-Date.now())/864e5);}
 function buildTimeline(msgs,ciRows,u){const ev=[];for(const m of msgs)ev.push({dt:m.date_added,type:'ghl',data:m});for(const ci of ciRows)ev.push({dt:ci.checkin_date+'T12:00:00Z',type:'checkin',data:ci});if(u?.last_external_contact)ev.push({dt:u.last_external_contact,type:'upsell',data:u});ev.sort((a,b)=>b.dt.localeCompare(a.dt));return ev;}
 function tlLcv(evs){const e=evs.find(ev=>(ev.type==='checkin'&&ev.data.status==='realizado')||(ev.type==='ghl'&&ev.data.is_conversation)||(ev.type==='upsell'&&ev.data.client_responded));return e?e.dt:null;}
