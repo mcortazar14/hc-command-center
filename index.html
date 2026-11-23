@@ -820,7 +820,7 @@ function phase(c){
 }
 function isCold(c){const dc=dago(c.last_conv_at);return phase(c)==='M3+'&&(dc===null||dc>59);}
 function isBulkDate(dt){if(!dt)return false;const d=(dt||'').slice(0,10);return d==='2026-09-29'||d==='2026-09-30';}
-function isConv(m){const tp=(m.message_type||'').toLowerCase();return(tp.includes('call')||tp==='llamada')&&(m.duration_seconds==null||m.duration_seconds>=30);}
+function isConv(m){const tp=(m.message_type||'').toLowerCase();return(tp.includes('call')||tp==='llamada')&&(m.duration_seconds==null||m.duration_seconds>=60);}
 function uUrgency(u){
   let s=0;
   if(['Pitched','Active'].includes(u.stage))s+=50;
