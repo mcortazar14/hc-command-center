@@ -942,10 +942,17 @@ function renderHCCards(){
   const _bog=new Date(Date.now()-5*3600000),_dow=_bog.getUTCDay(),_dtm=_dow===0?6:_dow-1;
   const _mon=new Date(_bog.getTime()-_dtm*86400000);_mon.setUTCHours(0,0,0,0);
   const wkS=new Date(_mon.getTime()+5*3600000),wkE=new Date(wkS.getTime()+7*86400000);
+  const _wkSd=wkS.toISOString().slice(0,10),_wkEd=wkE.toISOString().slice(0,10);
   const HC_TGT={'Q0aVHyBbFhqJxWuEKLMt':'mateo','uqAeFfwbHnH0lCwSvprz':'matt','YNlj27LBFv74CKLrh1zy':'mf'};
   document.getElementById('hc-cards').innerHTML=Object.entries(HCC).map(([id,h])=>{
     const openN=(HCF==='All'||HCF===id)?D.open.filter(c=>c.hc_id===id).length:null;
-    const conv7=D.msgs.filter(m=>m.hc_id===id&&isConv(m)&&dago(m.date_added)<=7).length;
+    // conv/wk = unique clients with a real conversation this Mon–Sun week
+    // Sources: GHL Llamada (is_conversation=true) + check-in realizado + upsell client_responded
+    const conv7=new Set([
+      ...D.msgs.filter(m=>m.hc_id===id&&m.is_conversation&&new Date(m.date_added)>=wkS&&new Date(m.date_added)<wkE).map(m=>m.client_id),
+      ...D.checkins.filter(c=>c.hc_id===id&&c.status==='realizado'&&c.checkin_date>=_wkSd&&c.checkin_date<_wkEd).map(c=>c.client_id),
+      ...D.upsell.filter(u=>{if(u.hc_id!==id||!u.client_responded||!u.last_external_contact)return false;const dt=new Date(u.last_external_contact.length===10?u.last_external_contact+'T05:00:00Z':u.last_external_contact);return dt>=wkS&&dt<wkE;}).map(u=>u.client_id),
+    ]).size;
     const pWk=D.firstPitches.filter(p=>p.hc_id===id&&new Date(p.first_pitch_at)>=wkS&&new Date(p.first_pitch_at)<wkE).length;
     const pGoal=D.weeklyTargets?.[HC_TGT[id]]??null;
     const pPct=pGoal?Math.round(pWk/pGoal*100):null;
